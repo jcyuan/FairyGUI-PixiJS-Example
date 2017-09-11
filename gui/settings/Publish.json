@@ -1,0 +1,14 @@
+{
+	"codeGeneration":{
+		"classNamePrefix":"UI_",
+		"codePath":"",
+		"codeType":"",
+		"getMemberByName":false,
+		"ignoreNoname":false,
+		"memberNamePrefix":"m_",
+		"packageName":""
+	},
+	"fileExtension":"jpg",
+	"packageCount":2,
+	"path":"G:\\projects\\laboratory\\FairyGUI-PixiJS-Example\\proj\\dist\\images"
+}
