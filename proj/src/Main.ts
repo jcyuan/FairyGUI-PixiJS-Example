@@ -41,7 +41,8 @@ class Main extends PIXI.Application {
         this.loadingView.setSize(fgui.GRoot.inst.width, fgui.GRoot.inst.height);
 
         //test.jpg actually is a binary file but just ends with fake postfix.
-        PIXI.loader.add("test", "images/test.jpg", { loadType: PIXI.loaders.Resource.LOAD_TYPE.XHR, xhrType: PIXI.loaders.Resource.XHR_RESPONSE_TYPE.BUFFER })
+        let loader = new fgui.utils.AssetLoader();
+        loader.add("test", "images/test.jpg", { loadType: PIXI.loaders.Resource.LOAD_TYPE.XHR, xhrType: PIXI.loaders.Resource.XHR_RESPONSE_TYPE.BUFFER })
             .add("test@atlas0", "images/test@atlas0.png")
             .add("test@atlas0_1", "images/test@atlas0_1.png")
             .add("test@atlas0_2", "images/test@atlas0_2.png")
@@ -66,7 +67,7 @@ class Main extends PIXI.Application {
 
     private resLoaded(loader: PIXI.loaders.Loader): void {
 
-        loader.removeAllListeners(null);
+        loader.destroy();
 
         fgui.UIPackage.addPackage("test");
         let ins = fgui.UIPackage.createObject("test", "main") as fgui.GComponent;

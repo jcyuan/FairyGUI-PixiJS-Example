@@ -43,7 +43,8 @@ define(["require", "exports", "./LoadingView", "./WindowA", "./WindowB", "./Wind
             _this.loadingView.addRelation(fgui.GRoot.inst, 24 /* Size */);
             _this.loadingView.setSize(fgui.GRoot.inst.width, fgui.GRoot.inst.height);
             //test.jpg actually is a binary file but just ends with fake postfix.
-            PIXI.loader.add("test", "images/test.jpg", { loadType: PIXI.loaders.Resource.LOAD_TYPE.XHR, xhrType: PIXI.loaders.Resource.XHR_RESPONSE_TYPE.BUFFER })
+            var loader = new fgui.utils.AssetLoader();
+            loader.add("test", "images/test.jpg", { loadType: PIXI.loaders.Resource.LOAD_TYPE.XHR, xhrType: PIXI.loaders.Resource.XHR_RESPONSE_TYPE.BUFFER })
                 .add("test@atlas0", "images/test@atlas0.png")
                 .add("test@atlas0_1", "images/test@atlas0_1.png")
                 .add("test@atlas0_2", "images/test@atlas0_2.png")
@@ -66,7 +67,7 @@ define(["require", "exports", "./LoadingView", "./WindowA", "./WindowB", "./Wind
             }
         };
         Main.prototype.resLoaded = function (loader) {
-            loader.removeAllListeners(null);
+            loader.destroy();
             fgui.UIPackage.addPackage("test");
             var ins = fgui.UIPackage.createObject("test", "main");
             ins.setSize(fgui.GRoot.inst.width, fgui.GRoot.inst.height);
