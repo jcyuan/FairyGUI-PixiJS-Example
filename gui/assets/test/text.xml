@@ -16,9 +16,9 @@
     <richtext id="n12" name="n12" xy="604,159" size="489,169" fontSize="22" color="#ccff00" ubb="true" autoSize="none" text="RichTextField has UBB / inline click / image (emoji) features:&#xA;temporarily not available, developing..."/>
     <text id="n17" name="n17" xy="29,22" size="430,29" fontSize="22" color="#ccff00" text="Normal text field does not have touch events"/>
     <graph id="n18" name="n18" xy="716,346" size="348,35" type="rect"/>
-    <text id="n19" name="n19" xy="720,348" size="341,29" fontSize="22" vAlign="middle" autoSize="none" singleLine="true" text="Not available temporarily"/>
+    <text id="n19" name="inputbox" xy="720,348" size="341,29" input="true" maxLength="20" keyboardType="1" fontSize="22" vAlign="middle" autoSize="none" singleLine="true" text="Input something"/>
     <text id="n20" name="n20" xy="605,351" size="57,29" fontSize="22" text="Input:"/>
-    <text id="n21" name="n21" xy="718,387" size="352,29" fontSize="22" color="#ff3300" autoSize="height" text=""/>
+    <text id="n21" name="resulttxt" xy="718,387" size="352,29" fontSize="22" color="#ff3300" autoSize="height" text=""/>
     <component id="n22" name="n22" src="idqrt" xy="802,430" size="171,36">
       <Button title="Get inputted content" titleFontSize="16"/>
     </component>

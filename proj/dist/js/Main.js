@@ -232,6 +232,12 @@ define(["require", "exports", "./LoadingView", "./WindowA", "./WindowB", "./Wind
                 this.textSizeDir = -1;
             this.textSizeWidth += this.textSizeDir;
             p.getChild("n24").width = p.getChild("n23").width = this.textSizeWidth;
+            p.getChild("n22").removeClick(this.__getInputText, this);
+            p.getChild("n22").click(this.__getInputText, this);
+        };
+        Main.prototype.__getInputText = function (e) {
+            var p = fgui.GObject.castFromNativeObject(e.currentTarget).parent;
+            p.getChild("resulttxt").text = p.getChild("inputbox").text;
         };
         Main.prototype.playDragDrop = function (ins) {
             var btnA = ins.getChild("a");

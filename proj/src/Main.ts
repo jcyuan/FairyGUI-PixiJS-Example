@@ -253,6 +253,12 @@ class Main extends PIXI.Application {
             this.textSizeDir = -1;
         this.textSizeWidth += this.textSizeDir;
         p.getChild("n24").width = p.getChild("n23").width = this.textSizeWidth;
+        p.getChild("n22").removeClick(this.__getInputText, this);
+        p.getChild("n22").click(this.__getInputText, this);
+    }
+    private __getInputText(e:PIXI.interaction.InteractionEvent):void {
+        let p = fgui.GObject.castFromNativeObject(e.currentTarget).parent as fgui.GComponent;
+        p.getChild("resulttxt").text = p.getChild("inputbox").text;
     }
 
     //------------drag&drop-----------------------------
