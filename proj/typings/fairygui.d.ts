@@ -128,28 +128,6 @@ declare namespace fgui {
         Vertical = 2,
         Both = 3,
     }
-    const enum TextureFillMode {
-        NONE = 0,
-        HORZ = 1,
-        VERT = 2,
-        DEG90 = 3,
-        DEG180 = 4,
-        DEG360 = 5,
-    }
-    const enum TextureFillBegin {
-        L = 0,
-        R = 1,
-        T = 2,
-        B = 3,
-        LT = 4,
-        RT = 5,
-        LB = 6,
-        RB = 7,
-    }
-    const enum TextureFillDirection {
-        CW = 0,
-        CCW = 1,
-    }
     const enum RelationType {
         Left_Left = 0,
         Left_Center = 1,
@@ -991,7 +969,7 @@ declare namespace fgui {
         protected $leading: number;
         protected $style: PIXI.TextStyle;
         protected $verticalAlign: VertAlignType;
-        protected $alignYOffset: number;
+        protected $offset: PIXI.Point;
         protected $color: number;
         protected $singleLine: boolean;
         protected $text: string;
@@ -1039,9 +1017,12 @@ declare namespace fgui {
         private $render();
         protected renderNow(updateBounds?: boolean): void;
         private renderWithBitmapFont(updateBounds);
+        localToGlobal(ax?: number, ay?: number, resultPoint?: PIXI.Point): PIXI.Point;
+        globalToLocal(ax?: number, ay?: number, resultPoint?: PIXI.Point): PIXI.Point;
         protected handleSizeChanged(): void;
         protected shrinkTextField(): void;
         protected layoutAlign(): void;
+        private updatePosition();
         protected handleXYChanged(): void;
         setupBeforeAdd(xml: utils.XmlNode): void;
         setupAfterAdd(xml: utils.XmlNode): void;
@@ -1197,20 +1178,23 @@ declare namespace fgui {
         protected $editable: boolean;
         protected $util: utils.InputDelegate;
         constructor();
-        private added(disp);
+        protected createDisplayObject(): void;
+        protected handleSizeChanged(): void;
         private removed(disp);
         requestFocus(): void;
         editable: boolean;
         private changeToPassText(text);
-        protected geText(): string;
-        protected setText(v: string): void;
-        color: number;
+        protected getText(): string;
+        protected setText(value: string): void;
+        protected setColor(value: number): void;
         promptText: string;
         maxLength: number;
         restrict: string;
         password: boolean;
         type: InputType;
         dispose(): void;
+        protected renderNow(updateBounds?: boolean): void;
+        private decorateInputbox();
         setupBeforeAdd(xml: utils.XmlNode): void;
     }
 }
@@ -1758,23 +1742,6 @@ declare namespace fgui {
     }
 }
 declare namespace fgui {
-    /**fill mode for webgl only */
-    class FillSprite extends PIXI.Sprite {
-        protected _fillMode: TextureFillMode;
-        protected _fillBegin: TextureFillBegin;
-        protected _fillDir: TextureFillDirection;
-        protected _fillAmount: number;
-        protected _flip: FlipType;
-        constructor(texture?: PIXI.Texture);
-        flip: FlipType;
-        fillAmount: number;
-        fillBegin: TextureFillBegin;
-        fillMode: TextureFillMode;
-        fillDirection: TextureFillDirection;
-        private checkAndFixFillBegin();
-    }
-}
-declare namespace fgui {
     class Frame {
         addDelay: number;
         texture: PIXI.Texture;
@@ -1802,6 +1769,7 @@ declare namespace fgui {
         private initInputElement(multiline);
         show(): void;
         disconnect(ele: InputElement): void;
+        clearAttributes(obj: any): void;
         clearInputElement(): void;
         requestInput(ele: InputElement): HTMLInputElement | HTMLTextAreaElement;
     }
@@ -1830,9 +1798,10 @@ declare namespace fgui {
         onClickHandler(e: Event): void;
         onDisconnect(): void;
         private setElementStyle(style, value);
+        private $attrsCache;
         setAttribute(name: string, value: string): void;
         getAttribute(name: string): string;
-        private resetInput();
+        resetInput(): void;
     }
 }
 declare namespace fgui {
@@ -1991,6 +1960,8 @@ declare namespace fgui {
         designHeight: number;
         alignV?: StageAlign;
         alignH?: StageAlign;
+        fallbackWidth?: number;
+        fallbackHeight?: number;
         [key: string]: string | number;
     }
     class DefaultUIStageOptions implements UIStageOptions {
@@ -2001,6 +1972,8 @@ declare namespace fgui {
         designHeight: number;
         alignV: StageAlign;
         alignH: StageAlign;
+        fallbackWidth: number;
+        fallbackHeight: number;
         [key: string]: string | number;
     }
     class UIStage extends PIXI.utils.EventEmitter {
@@ -2014,6 +1987,7 @@ declare namespace fgui {
         protected $canvasMatrix: PIXI.Matrix;
         offsetX: number;
         offsetY: number;
+        private $sizeCalcer;
         constructor(app: PIXI.Application, stageOptions?: UIStageOptions);
         readonly orientation: string;
         readonly stageWidth: number;
@@ -2034,8 +2008,14 @@ declare namespace fgui {
         dispose(): void;
     }
 }
+declare namespace PIXI.extras {
+    class Text extends PIXI.Text {
+        private static __init;
+        constructor(text?: string, style?: PIXI.TextStyle, canvas?: HTMLCanvasElement);
+    }
+}
 declare namespace fgui {
-    class UITextField extends PIXI.Text implements IUIObject {
+    class UITextField extends PIXI.extras.Text implements IUIObject {
         UIOwner: GObject;
         protected $minHeight: number;
         protected $minHeightID: number;
@@ -2428,9 +2408,9 @@ declare namespace fgui.utils {
         protected $type: InputType;
         private $focused;
         constructor(tf: GTextInput);
-        addStageText(): void;
+        initialize(): void;
         private textFieldDownHandler();
-        removeStageText(): void;
+        destroy(): void;
         text: string;
         setColor(v: number): void;
         private updateText();
@@ -2439,6 +2419,7 @@ declare namespace fgui.utils {
         readonly isFocused: boolean;
         $restrict: string;
         type: InputType;
+        private tryHideInput();
     }
 }
 declare namespace fgui.utils {
