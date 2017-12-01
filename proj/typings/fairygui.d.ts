@@ -1,4 +1,3 @@
-/// <reference path="../typings/pixi.js.d.ts" />
 declare namespace fgui {
     class InteractiveEvents {
         static Down: string;
@@ -128,6 +127,28 @@ declare namespace fgui {
         Vertical = 2,
         Both = 3,
     }
+    const enum TextureFillMode {
+        NONE = 0,
+        HORZ = 1,
+        VERT = 2,
+        DEG90 = 3,
+        DEG180 = 4,
+        DEG360 = 5,
+    }
+    const enum TextureFillBegin {
+        L = 0,
+        R = 1,
+        T = 2,
+        B = 3,
+        LT = 4,
+        RT = 5,
+        LB = 6,
+        RB = 7,
+    }
+    const enum TextureFillDirection {
+        CW = 0,
+        CCW = 1,
+    }
     const enum RelationType {
         Left_Left = 0,
         Left_Center = 1,
@@ -155,6 +176,11 @@ declare namespace fgui {
         BottomExt_Bottom = 23,
         Size = 24,
     }
+    const enum ListChildrenRenderOrder {
+        Ascent = 0,
+        Descent = 1,
+        Arch = 2,
+    }
     function ParseOverflowType(value: string): OverflowType;
     function ParseScrollType(value: string): ScrollType;
     function ParseLoaderFillType(value: string): LoaderFillType;
@@ -168,6 +194,7 @@ declare namespace fgui {
     function ParseAutoSizeType(value: string): AutoSizeType;
     function ParseAlignType(value: string): AlignType;
     function ParseVertAlignType(value: string): VertAlignType;
+    function ParseListChildrenRenderOrder(value: string): ListChildrenRenderOrder;
     function ParseEaseType(name: string): (t: number) => number;
 }
 declare namespace fgui {
@@ -191,7 +218,7 @@ declare namespace fgui {
         protected $pivotAsAnchor: boolean;
         protected $pivotOffset: PIXI.Point;
         protected $sortingOrder: number;
-        protected $internalVisible: number;
+        protected $internalVisible: boolean;
         protected $focusable: boolean;
         protected $tooltips: string;
         protected $pixelSnapping: boolean;
@@ -200,6 +227,7 @@ declare namespace fgui {
         protected $gears: GearBase<GObject>[];
         protected $displayObject: PIXI.DisplayObject;
         protected $dragBounds: PIXI.Rectangle;
+        protected $handlingController: boolean;
         private static $colorHelper;
         protected $colorFilter: PIXI.filters.ColorMatrixFilter;
         protected $lastColorComponents: number[];
@@ -266,6 +294,8 @@ declare namespace fgui {
         getGear(index: number | GearType): GearBase<GObject>;
         protected updateGear(index: GearType): void;
         updateGearFromRelations(index: GearType, dx: number, dy: number): void;
+        hasGearController(index: number, c: controller.Controller): boolean;
+        private checkGearVisible();
         readonly gearXY: GearXY;
         readonly gearSize: GearSize;
         readonly gearLook: GearLook;
@@ -363,13 +393,12 @@ declare namespace fgui {
         removeChildren(beginIndex?: number, endIndex?: number, dispose?: boolean): void;
         getChildAt(index?: number): GObject;
         getChild(name: string): GObject;
-        getVisibleChild(name: string): GObject;
         getChildInGroup(name: string, group: GGroup): GObject;
         getChildById(id: string): GObject;
         getChildIndex(child: GObject): number;
         setChildIndex(child: GObject, index?: number): void;
         setChildIndexBefore(child: GObject, index: number): number;
-        private $setChildIndex(child, oldIndex, index?);
+        protected $setChildIndex(child: GObject, oldIndex: number, index?: number): number;
         swapChildren(child1: GObject, child2: GObject): void;
         swapChildrenAt(index1: number, index2?: number): void;
         readonly numChildren: number;
@@ -398,7 +427,7 @@ declare namespace fgui {
         protected handleSizeChanged(): void;
         protected handleGrayedChanged(): void;
         setBoundsChangedFlag(): void;
-        private $reRenderLater(dt);
+        private $validate(dt);
         ensureBoundsCorrect(): void;
         protected updateBounds(): void;
         setBounds(ax: number, ay: number, aw: number, ah?: number): void;
@@ -407,6 +436,7 @@ declare namespace fgui {
         getSnappingPosition(xValue: number, yValue: number, resultPoint?: PIXI.Point): PIXI.Point;
         childSortingOrderChanged(child: GObject, oldValue: number, newValue?: number): void;
         private constructInternal(objectPool, poolIndex);
+        protected appendChildrenList(): void;
         protected constructFromXML(xml: utils.XmlNode): void;
         private $added(d);
         private $removed(d);
@@ -516,6 +546,7 @@ declare namespace fgui {
         protected $easeType: (t: number) => number;
         protected $tweenTime: number;
         protected $tweenDelay: number;
+        protected $lockToken: number;
         protected $owner: GObject & T;
         protected $controller: controller.Controller;
         constructor(owner: GObject & T);
@@ -556,9 +587,13 @@ declare namespace fgui {
 }
 declare namespace fgui {
     class GearDisplay extends GearBase<GObject> {
+        private $vid;
         pages: string[];
         constructor(owner: GObject);
         protected init(): void;
+        lock(): number;
+        release(token: number): void;
+        readonly connected: boolean;
         apply(): void;
     }
 }
@@ -584,7 +619,7 @@ declare namespace fgui {
         protected init(): void;
         protected addStatus(pageId: string, value: string): void;
         apply(): void;
-        private tweenEndCall();
+        private tweenComplete();
         updateState(): void;
     }
 }
@@ -599,7 +634,7 @@ declare namespace fgui {
         protected init(): void;
         protected addStatus(pageId: string, value: string): void;
         apply(): void;
-        private tweenEndCall();
+        private tweenComplete();
         updateState(): void;
         updateFromRelations(dx: number, dy: number): void;
     }
@@ -626,7 +661,7 @@ declare namespace fgui {
         protected init(): void;
         protected addStatus(pageId: string, value: string): void;
         apply(): void;
-        private tweenEndCall();
+        private tweenComplete();
         updateState(): void;
         updateFromRelations(dx: number, dy: number): void;
     }
@@ -715,7 +750,6 @@ declare namespace fgui {
         private $align;
         private $verticalAlign;
         private $selectionController;
-        private $lastSelectedIndex;
         private $pool;
         private $virtual;
         private $loop;
@@ -728,9 +762,19 @@ declare namespace fgui {
         private $virtualListChanged;
         private $virtualItems;
         private $eventLocked;
+        protected $apexIndex: number;
+        private $childrenRenderOrder;
         constructor();
+        childrenRenderOrder: ListChildrenRenderOrder;
+        apexIndex: number;
+        /**@override */
+        protected appendChildrenList(): void;
         /**@override */
         setXY(xv: number, yv: number): void;
+        /**@override */
+        protected $setChildIndex(child: GObject, oldIndex: number, index?: number): number;
+        /**@override */
+        childStateChanged(child: GObject): void;
         dispose(): void;
         layout: ListLayoutType;
         lineCount: number;
@@ -830,8 +874,6 @@ declare namespace fgui.utils {
 }
 declare namespace fgui {
     class GLoader extends GObject implements IAnimationGear, IColorGear {
-        private $gearAnimation;
-        private $gearColor;
         protected $url: string;
         protected $align: AlignType;
         protected $verticalAlign: VertAlignType;
@@ -874,7 +916,7 @@ declare namespace fgui {
         protected loadExternal(): void;
         /**free the resource you loaded */
         protected freeExternal(texture: PIXI.Texture): void;
-        private $loadResCompleted(ld, res);
+        private $loadResCompleted(res);
         /**content loaded */
         protected onExternalLoadSuccess(texture: PIXI.Texture): void;
         protected onExternalLoadFailed(): void;
@@ -966,13 +1008,13 @@ declare namespace fgui {
         protected $lines: LineInfo[];
         protected $bitmapPool: PIXI.Sprite[];
         protected $font: string;
-        protected $leading: number;
         protected $style: PIXI.TextStyle;
         protected $verticalAlign: VertAlignType;
         protected $offset: PIXI.Point;
         protected $color: number;
         protected $singleLine: boolean;
         protected $text: string;
+        protected $fontProperties: PIXI.FontMetrics;
         protected $autoSize: AutoSizeType;
         protected $widthAutoSize: boolean;
         protected $heightAutoSize: boolean;
@@ -981,8 +1023,8 @@ declare namespace fgui {
         protected $sizeDirty: boolean;
         protected $textWidth: number;
         protected $textHeight: number;
-        protected static GUTTER_X: number;
-        protected static GUTTER_Y: number;
+        static GUTTER_X: number;
+        static GUTTER_Y: number;
         constructor();
         protected createDisplayObject(): void;
         private switchBitmapMode(val);
@@ -994,6 +1036,7 @@ declare namespace fgui {
         protected getColor(): number;
         protected setColor(value: number): void;
         titleColor: number;
+        lineHeight: number;
         font: string;
         fontSize: number;
         align: AlignType;
@@ -1489,7 +1532,7 @@ declare namespace fgui {
         static OPTION_AUTO_STOP_AT_END: number;
         private static FRAME_RATE;
         constructor(owner: GComponent);
-        private $ownerRemoved();
+        private $ownerVisibleChanged(vis, owner);
         autoPlay: boolean;
         changeRepeat(value: number): void;
         /**
@@ -1533,7 +1576,7 @@ declare namespace fgui {
         private $tweenUpdate(event, item);
         private $tweenComplete(event, item);
         private $tweenRepeatComplete(event, item);
-        private disposeTween(item, force?);
+        private disposeTween(item);
         private $playTransComplete(item);
         private checkAllComplete();
         private applyValue(item, value);
@@ -1742,6 +1785,25 @@ declare namespace fgui {
     }
 }
 declare namespace fgui {
+    /**for webgl only */
+    class FillSprite extends PIXI.Sprite {
+        protected _fillMode: TextureFillMode;
+        protected _fillBegin: TextureFillBegin;
+        protected _fillDir: TextureFillDirection;
+        protected _fillAmount: number;
+        protected _flip: FlipType;
+        protected _percent: number;
+        constructor(texture?: PIXI.Texture);
+        flip: FlipType;
+        fillAmount: number;
+        fillBegin: TextureFillBegin;
+        fillMode: TextureFillMode;
+        fillDirection: TextureFillDirection;
+        private checkAndFixFillBegin();
+        amount: number;
+    }
+}
+declare namespace fgui {
     class Frame {
         addDelay: number;
         texture: PIXI.Texture;
@@ -1778,7 +1840,6 @@ declare namespace fgui {
     class InputElement extends PIXI.utils.EventEmitter {
         private htmlInput;
         private $requestToShow;
-        private $requestToHide;
         private inputElement;
         private inputDiv;
         private $scaleX;
@@ -2011,6 +2072,14 @@ declare namespace fgui {
 declare namespace PIXI.extras {
     class Text extends PIXI.Text {
         private static __init;
+        /**
+         * Check whether a byte is an emoji character or not.
+         *
+         * @param {number} charCode - the byte to test.
+         * @param {number} nextCharCode - the possible second byte of the emoji.
+         * @return {number} 0 means not a emoji, 1 means single byte, 2 means double bytes.
+         */
+        static isEmojiChar(charCode: number, nextCharCode: number): number;
         constructor(text?: string, style?: PIXI.TextStyle, canvas?: HTMLCanvasElement);
     }
 }
@@ -2022,6 +2091,7 @@ declare namespace fgui {
         constructor(owner?: GObject);
         readonly minHeight: number;
         protected updateFrame(): void;
+        private internalUpdateFrame();
         protected _onTextureUpdate(): void;
         width: number;
         height: number;
@@ -2033,6 +2103,7 @@ declare namespace fgui {
     const enum DisplayObjectEvent {
         XY_CHANGED = "__xyChanged",
         SIZE_CHANGED = "__sizeChanged",
+        VISIBLE_CHANGED = "__visibleChanged",
         SIZE_DELAY_CHANGE = "__sizeDelayChange",
     }
 }
