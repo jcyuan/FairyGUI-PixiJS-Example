@@ -40,8 +40,8 @@ define(["require", "exports", "./LoadingView", "./WindowA", "./WindowB", "./Wind
             _this.contentlayer = new fgui.GComponent();
             fgui.GRoot.inst.addChild(_this.contentlayer);
             _this.contentlayer.addChild(_this.loadingView = new LoadingView_1.LoadingView());
-            _this.loadingView.addRelation(fgui.GRoot.inst, 24 /* Size */);
             _this.loadingView.setSize(fgui.GRoot.inst.width, fgui.GRoot.inst.height);
+            _this.loadingView.addRelation(fgui.GRoot.inst, 24 /* Size */);
             //test.jpg actually is a binary file but just ends with fake postfix.
             var loader = new fgui.utils.AssetLoader();
             loader.add("test", "images/test.jpg", { loadType: PIXI.loaders.Resource.LOAD_TYPE.XHR, xhrType: PIXI.loaders.Resource.XHR_RESPONSE_TYPE.BUFFER })
@@ -60,7 +60,7 @@ define(["require", "exports", "./LoadingView", "./WindowA", "./WindowB", "./Wind
         Main.prototype.loadProgress = function (loader) {
             var p = loader.progress;
             this.loadingView.setProgress(p);
-            if (p >= 100) {
+            if (p >= 1) {
                 loader.off("progress", this.loadProgress, this);
                 this.loadingView.dispose();
                 this.loadingView = null;
@@ -71,13 +71,14 @@ define(["require", "exports", "./LoadingView", "./WindowA", "./WindowB", "./Wind
             fgui.UIPackage.addPackage("test");
             var ins = fgui.UIPackage.createObject("test", "main");
             ins.setSize(fgui.GRoot.inst.width, fgui.GRoot.inst.height);
+            ins.addRelation(fgui.GRoot.inst, 24 /* Size */);
             this.contentlayer.addChild(ins);
             this.initClicks(ins);
         };
         Main.prototype.initClicks = function (ins) {
             this.mainIns = ins;
-            ins.addRelation(fgui.GRoot.inst, 24 /* Size */);
             ins.setSize(fgui.GRoot.inst.width, fgui.GRoot.inst.height);
+            ins.addRelation(fgui.GRoot.inst, 24 /* Size */);
             this.container = ins.getChild("container");
             for (var i = 0; i < ins.numChildren; i++) {
                 var c = ins.getChildAt(i);
@@ -103,8 +104,8 @@ define(["require", "exports", "./LoadingView", "./WindowA", "./WindowB", "./Wind
             }
             this.currentDemo = fgui.UIPackage.createObjectFromURL("ui://test/" + name);
             this.currentDemo.name = name;
-            this.currentDemo.addRelation(this.container, 24 /* Size */);
             this.currentDemo.setSize(this.container.width, this.container.height);
+            this.currentDemo.addRelation(this.container, 24 /* Size */);
             this.container.addChild(this.currentDemo);
             this.initDemo(name, this.currentDemo);
             this.mainIns.getController("c1").selectedIndex = 1;

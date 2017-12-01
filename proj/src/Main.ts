@@ -37,8 +37,8 @@ class Main extends PIXI.Application {
         fgui.GRoot.inst.addChild(this.contentlayer);
 
         this.contentlayer.addChild(this.loadingView = new LoadingView());
-        this.loadingView.addRelation(fgui.GRoot.inst, fgui.RelationType.Size);
         this.loadingView.setSize(fgui.GRoot.inst.width, fgui.GRoot.inst.height);
+        this.loadingView.addRelation(fgui.GRoot.inst, fgui.RelationType.Size);
 
         //test.jpg actually is a binary file but just ends with fake postfix.
         let loader = new fgui.utils.AssetLoader();
@@ -58,7 +58,7 @@ class Main extends PIXI.Application {
     private loadProgress(loader: PIXI.loaders.Loader): void {
         let p = loader.progress;
         this.loadingView.setProgress(p);
-        if (p >= 100) {
+        if (p >= 1) {
             loader.off("progress", this.loadProgress, this);
             this.loadingView.dispose();
             this.loadingView = null;
@@ -72,6 +72,7 @@ class Main extends PIXI.Application {
         fgui.UIPackage.addPackage("test");
         let ins = fgui.UIPackage.createObject("test", "main") as fgui.GComponent;
         ins.setSize(fgui.GRoot.inst.width, fgui.GRoot.inst.height);
+        ins.addRelation(fgui.GRoot.inst, fgui.RelationType.Size);
         this.contentlayer.addChild(ins);
 
         this.initClicks(ins);
@@ -86,8 +87,8 @@ class Main extends PIXI.Application {
     private initClicks(ins: fgui.GComponent): void {
 
         this.mainIns = ins;
-        ins.addRelation(fgui.GRoot.inst, fgui.RelationType.Size);
         ins.setSize(fgui.GRoot.inst.width, fgui.GRoot.inst.height);
+        ins.addRelation(fgui.GRoot.inst, fgui.RelationType.Size);
         this.container = ins.getChild("container") as fgui.GComponent;
 
         for (let i = 0; i < ins.numChildren; i++) {
@@ -115,8 +116,8 @@ class Main extends PIXI.Application {
         }
         this.currentDemo = fgui.UIPackage.createObjectFromURL(`ui://test/${name}`) as fgui.GComponent;
         this.currentDemo.name = name;
-        this.currentDemo.addRelation(this.container, fgui.RelationType.Size);
         this.currentDemo.setSize(this.container.width, this.container.height);
+        this.currentDemo.addRelation(this.container, fgui.RelationType.Size);
         this.container.addChild(this.currentDemo);
         this.initDemo(name, this.currentDemo);
         this.mainIns.getController("c1").selectedIndex = 1;

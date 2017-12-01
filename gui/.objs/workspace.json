@@ -1,21 +1,15 @@
 {
-	"docs": [
+	"expanded_nodes": [
 		"x8x40spb",
-		"idqru",
-		"x8x40spb",
-		"hxib41",
-		"x8x40spb",
-		"idqr10",
-		"x8x40spb",
-		"ntk66t"
+		"/"
 	],
-	"hidden_packages": [],
 	"active_doc": [
 		"x8x40spb",
 		"idqru"
 	],
-	"expanded_nodes": [
+	"docs": [
 		"x8x40spb",
-		"/"
-	]
+		"idqru"
+	],
+	"hidden_packages": []
 }
