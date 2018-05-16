@@ -7,6 +7,7 @@ class Main extends PIXI.Application {
 
     private loadingView: LoadingView;
     private contentlayer: fgui.GComponent;
+    private stats:{ update:() => void, dom:HTMLElement };
 
     public constructor() {
 
@@ -15,6 +16,9 @@ class Main extends PIXI.Application {
             backgroundColor: 0xb5b5b5,
             antialias: true
         });
+
+        this.stats = new window["Stats"]();
+        document.body.appendChild(this.stats.dom);
 
         /**global settings */
         //fgui.UIConfig.defaultFont = "Microsoft YaHei";
@@ -58,7 +62,7 @@ class Main extends PIXI.Application {
     private loadProgress(loader: PIXI.loaders.Loader): void {
         let p = loader.progress;
         this.loadingView.setProgress(p);
-        if (p >= 1) {
+        if (p >= 100) {
             loader.off("progress", this.loadProgress, this);
             this.loadingView.dispose();
             this.loadingView = null;
@@ -74,7 +78,7 @@ class Main extends PIXI.Application {
         ins.setSize(fgui.GRoot.inst.width, fgui.GRoot.inst.height);
         ins.addRelation(fgui.GRoot.inst, fgui.RelationType.Size);
         this.contentlayer.addChild(ins);
-
+        
         this.initClicks(ins);
     }
 
@@ -376,6 +380,11 @@ class Main extends PIXI.Application {
 
     private __clickPopup2(): void {
         fgui.GRoot.inst.showPopup(this._popupCom);
+    }
+
+    public render():void {
+        this.stats.update();
+        super.render();
     }
 }
 

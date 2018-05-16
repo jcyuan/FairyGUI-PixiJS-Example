@@ -22,6 +22,8 @@ define(["require", "exports", "./LoadingView", "./WindowA", "./WindowB", "./Wind
             //-----------text-------------------------
             _this.textSizeWidth = 337;
             _this.textSizeDir = -1;
+            _this.stats = new window["Stats"]();
+            document.body.appendChild(_this.stats.dom);
             /**global settings */
             //fgui.UIConfig.defaultFont = "Microsoft YaHei";
             fgui.UIConfig.verticalScrollBar = "ui://test/ScrollBar_VT";
@@ -60,7 +62,7 @@ define(["require", "exports", "./LoadingView", "./WindowA", "./WindowB", "./Wind
         Main.prototype.loadProgress = function (loader) {
             var p = loader.progress;
             this.loadingView.setProgress(p);
-            if (p >= 1) {
+            if (p >= 100) {
                 loader.off("progress", this.loadProgress, this);
                 this.loadingView.dispose();
                 this.loadingView = null;
@@ -327,6 +329,10 @@ define(["require", "exports", "./LoadingView", "./WindowA", "./WindowB", "./Wind
         };
         Main.prototype.__clickPopup2 = function () {
             fgui.GRoot.inst.showPopup(this._popupCom);
+        };
+        Main.prototype.render = function () {
+            this.stats.update();
+            _super.prototype.render.call(this);
         };
         return Main;
     }(PIXI.Application));

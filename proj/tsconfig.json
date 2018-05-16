@@ -1,8 +1,12 @@
 {
+  "compileOnSave": true,
   "compilerOptions": {
     "target": "es5",
     "module": "amd",
-    "sourceMap": true
+    "sourceMap": true,
+    "typeRoots": [
+      "typings/"
+    ]
   },
   "exclude": [
     "node_modules",
