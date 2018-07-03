@@ -165,7 +165,7 @@
     <image id="hxib4y" name="p9_png.png" path="/imgs/"/>
     <component id="hxib4z" name="音量设置.xml" path="/components/"/>
     <image id="hxib50" name="音量_背景条_png.png" path="/imgs/" scale="9grid" scale9grid="120,7,240,14"/>
-    <image id="hxib51" name="音量_进度条_png.png" path="/imgs/" scale="9grid" scale9grid="41,4,342,5"/>
+    <image id="hxib51" name="音量_进度条_png.png" path="/imgs/" scale="9grid" scale9grid="14,4,392,5"/>
     <component id="hxib52" name="指示按钮.xml" path="/components/"/>
     <image id="hxib53" name="按钮_指示_常态_png.png" path="/imgs/"/>
     <image id="hxib54" name="按钮_指示_按下_png.png" path="/imgs/"/>
@@ -248,8 +248,9 @@
     <image id="lr6v7m" name="输入框_按下_png.png" path="/imags/" scale="9grid" scale9grid="11,7,82,26"/>
     <image id="lr6v7n" name="输入框_选中_png.png" path="/imags/" scale="9grid" scale9grid="26,10,52,20"/>
     <image id="lr6v7o" name="输入框_不可用_png.png" path="/imags/" scale="9grid" scale9grid="26,10,52,20"/>
+    <component id="o1v17r" name="Component15.xml" path="/components/"/>
   </resources>
-  <publish name="test" maxAtlasSize="512" npot="true">
+  <publish name="test" maxAtlasSize="512" npot="true" rotation="true">
     <atlas name="默认" index="0"/>
   </publish>
 </packageDescription>

@@ -21,7 +21,6 @@ class Main extends PIXI.Application {
         document.body.appendChild(this.stats.dom);
 
         /**global settings */
-        //fgui.UIConfig.defaultFont = "Microsoft YaHei";
         fgui.UIConfig.verticalScrollBar = "ui://test/ScrollBar_VT";
         fgui.UIConfig.horizontalScrollBar = "ui://test/ScrollBar_HZ";
         fgui.UIConfig.popupMenu = "ui://test/PopupMenu";
@@ -52,8 +51,6 @@ class Main extends PIXI.Application {
             .add("test@atlas0_2", "images/test@atlas0_2.png")
             .add("test@atlas0_3", "images/test@atlas0_3.png")
             .add("test@atlas0_4", "images/test@atlas0_4.png")
-            .add("test@atlas0_5", "images/test@atlas0_5.png")
-            .add("test@atlas0_6", "images/test@atlas0_6.png")
             .on("progress", this.loadProgress, this)
             .on("complete", this.resLoaded, this)
             .load();
@@ -74,12 +71,16 @@ class Main extends PIXI.Application {
         loader.destroy();
 
         fgui.UIPackage.addPackage("test");
+
         let ins = fgui.UIPackage.createObject("test", "main") as fgui.GComponent;
         ins.setSize(fgui.GRoot.inst.width, fgui.GRoot.inst.height);
         ins.addRelation(fgui.GRoot.inst, fgui.RelationType.Size);
         this.contentlayer.addChild(ins);
-        
         this.initClicks(ins);
+    }
+
+    private renderFunc(index:number, item:fgui.GObject):void {
+        item.text = index.toString();
     }
 
     private mainIns: fgui.GComponent;
@@ -337,7 +338,7 @@ class Main extends PIXI.Application {
     }
 
     private __clicRootWiat(): void {
-        fgui.GRoot.inst.showModalWait("正在处理中，请稍等...");
+        fgui.GRoot.inst.showModalWait("Please wait while loading...");
         setTimeout(() => {
             fgui.GRoot.inst.closeModalWait();
         }, 3000);

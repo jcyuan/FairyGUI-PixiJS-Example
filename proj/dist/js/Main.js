@@ -25,7 +25,6 @@ define(["require", "exports", "./LoadingView", "./WindowA", "./WindowB", "./Wind
             _this.stats = new window["Stats"]();
             document.body.appendChild(_this.stats.dom);
             /**global settings */
-            //fgui.UIConfig.defaultFont = "Microsoft YaHei";
             fgui.UIConfig.verticalScrollBar = "ui://test/ScrollBar_VT";
             fgui.UIConfig.horizontalScrollBar = "ui://test/ScrollBar_HZ";
             fgui.UIConfig.popupMenu = "ui://test/PopupMenu";
@@ -52,8 +51,6 @@ define(["require", "exports", "./LoadingView", "./WindowA", "./WindowB", "./Wind
                 .add("test@atlas0_2", "images/test@atlas0_2.png")
                 .add("test@atlas0_3", "images/test@atlas0_3.png")
                 .add("test@atlas0_4", "images/test@atlas0_4.png")
-                .add("test@atlas0_5", "images/test@atlas0_5.png")
-                .add("test@atlas0_6", "images/test@atlas0_6.png")
                 .on("progress", _this.loadProgress, _this)
                 .on("complete", _this.resLoaded, _this)
                 .load();
@@ -76,6 +73,9 @@ define(["require", "exports", "./LoadingView", "./WindowA", "./WindowB", "./Wind
             ins.addRelation(fgui.GRoot.inst, 24 /* Size */);
             this.contentlayer.addChild(ins);
             this.initClicks(ins);
+        };
+        Main.prototype.renderFunc = function (index, item) {
+            item.text = index.toString();
         };
         Main.prototype.initClicks = function (ins) {
             this.mainIns = ins;
@@ -296,7 +296,7 @@ define(["require", "exports", "./LoadingView", "./WindowA", "./WindowB", "./Wind
             this._winA.show();
         };
         Main.prototype.__clicRootWiat = function () {
-            fgui.GRoot.inst.showModalWait("正在处理中，请稍等...");
+            fgui.GRoot.inst.showModalWait("Please wait while loading...");
             setTimeout(function () {
                 fgui.GRoot.inst.closeModalWait();
             }, 3000);

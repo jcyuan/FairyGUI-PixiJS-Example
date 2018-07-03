@@ -22,7 +22,7 @@ define(["require", "exports", "./WindowA"], function (require, exports, WindowA_
         };
         WindowWait.prototype.loadData = function () {
             var _this = this;
-            this.showModalWait("加载数据，请稍候...");
+            this.showModalWait("Loading data...");
             clearTimeout(this.delayTimer);
             this.delayTimer = setTimeout(function () {
                 _this.closeModalWait();

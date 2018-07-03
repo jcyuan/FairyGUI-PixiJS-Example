@@ -15,7 +15,7 @@ export class WindowWait extends WindowA {
     }
 
     private loadData():void {
-        this.showModalWait("加载数据，请稍候...");
+        this.showModalWait("Loading data...");
 
         clearTimeout(this.delayTimer);
         this.delayTimer = setTimeout(() => {

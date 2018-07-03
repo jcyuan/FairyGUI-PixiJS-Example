@@ -9,7 +9,7 @@
       <Slider value="50" max="100"/>
     </component>
     <component id="n3" name="n3" src="hxib4z" xy="41,273">
-      <Slider value="50" max="100"/>
+      <Slider value="100" max="100"/>
     </component>
   </displayList>
 </component>

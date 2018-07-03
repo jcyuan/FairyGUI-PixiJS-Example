@@ -83,6 +83,7 @@ var fgui;
     ;
     ;
     ;
+    ;
     function ParseOverflowType(value) {
         switch (value) {
             case "visible":
@@ -125,6 +126,8 @@ var fgui;
                 return 3 /* ScaleMatchWidth */;
             case "scaleFree":
                 return 4 /* ScaleFree */;
+            case "scaleNoBorder":
+                return 5 /* ScaleNoBorder */;
             default:
                 return 0 /* None */;
         }
@@ -327,7 +330,7 @@ var fgui;
         "Back.InOut": createjs.Ease.backInOut
     };
     function ParseEaseType(name) {
-        return easeMap[name] || easeMap["linear"];
+        return easeMap[name] || easeMap["Linear"];
     }
     fgui.ParseEaseType = ParseEaseType;
 })(fgui || (fgui = {}));
@@ -899,7 +902,7 @@ var fgui;
         Object.defineProperty(GObject.prototype, "resourceURL", {
             get: function () {
                 if (this.packageItem != null)
-                    return "{ui://" + this.packageItem.owner.id + this.packageItem.id;
+                    return "ui://" + this.packageItem.owner.id + this.packageItem.id;
                 else
                     return null;
             },
@@ -1452,8 +1455,8 @@ var fgui;
         GObject.prototype.dragBegin = function () {
             if (GObject.draggingObject != null)
                 GObject.draggingObject.stopDrag();
-            GObject.sGlobalDragStart.x = fgui.GRoot.statusData.mouseX;
-            GObject.sGlobalDragStart.y = fgui.GRoot.statusData.mouseY;
+            GObject.sGlobalDragStart.x = fgui.GRoot.globalMouseStatus.mouseX;
+            GObject.sGlobalDragStart.y = fgui.GRoot.globalMouseStatus.mouseY;
             this.localToGlobalRect(0, 0, this.width, this.height, GObject.sGlobalRect);
             GObject.draggingObject = this;
             fgui.GRoot.inst.nativeStage.on(fgui.InteractiveEvents.Move, this.$moving2, this);
@@ -1994,13 +1997,12 @@ var fgui;
             rect.height = h;
             this.$rootContainer.scrollRect = rect;
         };
-        GComponent.prototype.setupScroll = function (scrollBarMargin, scroll, scrollBarDisplay, flags, vtScrollBarRes, hzScrollBarRes) {
+        GComponent.prototype.setupScroll = function (scrollBarMargin, scroll, scrollBarDisplay, flags, vtScrollBarRes, hzScrollBarRes, headerRes, footerRes) {
             if (this.$rootContainer == this.$container) {
                 this.$container = new PIXI.Container();
                 this.$rootContainer.addChild(this.$container);
             }
-            this.$scrollPane = new fgui.ScrollPane(this, scroll, scrollBarMargin, scrollBarDisplay, flags, vtScrollBarRes, hzScrollBarRes);
-            this.setBoundsChangedFlag();
+            this.$scrollPane = new fgui.ScrollPane(this, scroll, scrollBarMargin, scrollBarDisplay, flags, vtScrollBarRes, hzScrollBarRes, headerRes, footerRes);
         };
         GComponent.prototype.setupOverflow = function (overflow) {
             if (overflow == 1 /* Hidden */) {
@@ -2032,14 +2034,10 @@ var fgui;
         };
         GComponent.prototype.handleGrayedChanged = function () {
             var c = this.getController("grayed");
-            if (c != null) {
+            if (c != null)
                 c.selectedIndex = this.grayed ? 1 : 0;
-                return;
-            }
-            var v = this.grayed;
-            this.$children.forEach(function (child) {
-                child.grayed = v;
-            });
+            else
+                _super.prototype.handleGrayedChanged.call(this);
         };
         GComponent.prototype.setBoundsChangedFlag = function () {
             if (!this.$scrollPane && !this.$trackBounds)
@@ -2265,7 +2263,14 @@ var fgui;
                     vtScrollBarRes = arr[0];
                     hzScrollBarRes = arr[1];
                 }
-                this.setupScroll(scrollBarMargin, scroll_1, scrollBarDisplay, scrollBarFlags, vtScrollBarRes, hzScrollBarRes);
+                var headerRes = void 0, footerRes = void 0;
+                str = xml.attributes.ptrRes;
+                if (str) {
+                    arr = str.split(",");
+                    headerRes = arr[0];
+                    footerRes = arr[1];
+                }
+                this.setupScroll(scrollBarMargin, scroll_1, scrollBarDisplay, scrollBarFlags, vtScrollBarRes, hzScrollBarRes, headerRes, footerRes);
             }
             else
                 this.setupOverflow(overflow);
@@ -4059,13 +4064,13 @@ var fgui;
             set: function (value) {
                 if (this.$flip != value) {
                     this.$flip = value;
-                    var sx = 1, sy = 1;
+                    var sx = false, sy = false;
                     if (this.$flip == 1 /* Horizontal */ || this.$flip == 3 /* Both */)
-                        sx = -1;
+                        sx = true;
                     if (this.$flip == 2 /* Vertical */ || this.$flip == 3 /* Both */)
-                        sy = -1;
-                    this.$content.scale.set(sx, sy);
-                    this.handleXYChanged();
+                        sy = true;
+                    this.$content.flipX = sx;
+                    this.$content.flipY = sy;
                 }
             },
             enumerable: true,
@@ -4261,10 +4266,13 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
+    ;
     var ItemInfo = (function () {
         function ItemInfo() {
             this.width = 0;
             this.height = 0;
+            this.updateFlag = 0;
+            this.selected = false;
         }
         return ItemInfo;
     }());
@@ -4272,28 +4280,28 @@ var fgui;
         __extends(GList, _super);
         function GList() {
             var _this = _super.call(this) || this;
-            _this.scrollItemToViewOnClick = true;
-            _this.foldInvisibleItems = false;
             _this.$lineCount = 0;
             _this.$columnCount = 0;
             _this.$lineGap = 0;
             _this.$columnGap = 0;
+            _this.$lastSelectedIndex = 0;
             _this.$numItems = 0;
-            _this.$realNumItems = 0;
-            _this.$firstIndex = 0;
-            _this.$curLineItemCount = 0; //item count in one row
-            _this.$curLineItemCount2 = 0; //only for page mode, represents the item count on vertical direction
-            _this.$virtualListChanged = 0; //1-content changed, 2-size changed
+            _this.$firstIndex = 0; //top left index
+            _this.$curLineItemCount = 0; //item count in one line
+            _this.$virtualListChanged = 0 /* None */;
             //render sorting type
             _this.$apexIndex = 0;
             _this.$childrenRenderOrder = 0 /* Ascent */;
+            _this.$itemInfoVer = 0; //is the item used in the current handling or not
+            _this.$enterCounter = 0; //because the handleScroll function can be re-entered, so this variable is used to avoid dead-lock
             _this.$trackBounds = true;
             _this.$pool = new fgui.utils.GObjectRecycler();
             _this.$layout = 0 /* SingleColumn */;
             _this.$autoResizeItem = true;
-            //this.$lastSelectedIndex = -1;
+            _this.$lastSelectedIndex = -1;
             _this.$selectionMode = 0 /* Single */;
             _this.opaque = true;
+            _this.scrollItemToViewOnClick = true;
             _this.$align = "left" /* Left */;
             _this.$verticalAlign = 0 /* Top */;
             _this.$container = new PIXI.Container();
@@ -4471,12 +4479,9 @@ var fgui;
             }
         };
         GList.prototype.dispose = function () {
-            fgui.GTimer.inst.remove(this._refreshVirtualList, this);
+            fgui.GTimer.inst.remove(this.$refreshVirtualList, this);
             this.$pool.clear();
-            if (this.$scrollPane) {
-                this.$scrollPane.off("__scroll" /* SCROLL */, this.$scrolled, this);
-                this.$scrollPane.dispose();
-            }
+            this.$scrollPane.off("__scroll" /* SCROLL */, this.$scrolled, this);
             _super.prototype.dispose.call(this);
         };
         Object.defineProperty(GList.prototype, "layout", {
@@ -4501,9 +4506,11 @@ var fgui;
             set: function (value) {
                 if (this.$lineCount != value) {
                     this.$lineCount = value;
-                    this.setBoundsChangedFlag();
-                    if (this.$virtual)
-                        this.setVirtualListChangedFlag(true);
+                    if (this.$layout == 3 /* FlowVertical */ || this.$layout == 4 /* Pagination */) {
+                        this.setBoundsChangedFlag();
+                        if (this.$virtual)
+                            this.setVirtualListChangedFlag(true);
+                    }
                 }
             },
             enumerable: true,
@@ -4516,9 +4523,11 @@ var fgui;
             set: function (value) {
                 if (this.$columnCount != value) {
                     this.$columnCount = value;
-                    this.setBoundsChangedFlag();
-                    if (this.$virtual)
-                        this.setVirtualListChangedFlag(true);
+                    if (this.$layout == 2 /* FlowHorizontal */ || this.$layout == 4 /* Pagination */) {
+                        this.setBoundsChangedFlag();
+                        if (this.$virtual)
+                            this.setVirtualListChangedFlag(true);
+                    }
                 }
             },
             enumerable: true,
@@ -4661,16 +4670,14 @@ var fgui;
             return obj;
         };
         GList.prototype.returnToPool = function (obj) {
-            obj.displayObject.cacheAsBitmap = false;
             this.$pool.recycle(obj.resourceURL, obj);
         };
         GList.prototype.addChildAt = function (child, index) {
             if (index === void 0) { index = 0; }
             _super.prototype.addChildAt.call(this, child, index);
             if (child instanceof fgui.GButton) {
-                var button = child;
-                button.selected = false;
-                button.changeStateOnClick = false;
+                child.selected = false;
+                child.changeStateOnClick = false;
             }
             child.click(this.$clickItem, this);
             return child;
@@ -4708,7 +4715,6 @@ var fgui;
                 throw new Error("Invalid child index");
         };
         GList.prototype.removeChildToPoolAt = function (index) {
-            if (index === void 0) { index = 0; }
             var child = _super.prototype.removeChildAt.call(this, index);
             this.returnToPool(child);
         };
@@ -4726,106 +4732,214 @@ var fgui;
         };
         Object.defineProperty(GList.prototype, "selectedIndex", {
             get: function () {
-                var cnt = this.$children.length;
-                for (var i = 0; i < cnt; i++) {
-                    var obj = this.$children[i];
-                    if (obj != null && obj.selected)
-                        return this.childIndexToItemIndex(i);
+                var i;
+                if (this.$virtual) {
+                    for (i = 0; i < this.$realNumItems; i++) {
+                        var ii = this.$virtualItems[i];
+                        if ((ii.obj instanceof fgui.GButton && ii.obj.selected) || (ii.obj == null && ii.selected)) {
+                            if (this.$loop)
+                                return i % this.$numItems;
+                            else
+                                return i;
+                        }
+                    }
+                }
+                else {
+                    var cnt = this.$children.length;
+                    for (i = 0; i < cnt; i++) {
+                        var obj = this.$children[i];
+                        if (obj != null && obj.selected)
+                            return i;
+                    }
                 }
                 return -1;
             },
             set: function (value) {
-                this.clearSelection();
-                if (value >= 0 && value < this.numItems)
+                if (value >= 0 && value < this.numItems) {
+                    if (this.selectionMode != 0 /* Single */)
+                        this.clearSelection();
                     this.addSelection(value);
+                }
+                else
+                    this.clearSelection();
             },
             enumerable: true,
             configurable: true
         });
         GList.prototype.getSelection = function () {
-            var _this = this;
             var ret = [];
-            this.$children.forEach(function (child, index) {
-                if (child != null && child.selected)
-                    ret.push(_this.childIndexToItemIndex(index));
-            }, this);
+            var i;
+            if (this.$virtual) {
+                for (i = 0; i < this.$realNumItems; i++) {
+                    var ii = this.$virtualItems[i];
+                    if ((ii.obj instanceof fgui.GButton && ii.obj.selected) || (ii.obj == null && ii.selected)) {
+                        var j = i;
+                        if (this.$loop) {
+                            j = i % this.$numItems;
+                            if (ret.indexOf(j) != -1)
+                                continue;
+                        }
+                        ret.push(j);
+                    }
+                }
+            }
+            else {
+                var cnt = this.$children.length;
+                for (i = 0; i < cnt; i++) {
+                    var obj = this.$children[i];
+                    if (obj != null && obj.selected)
+                        ret.push(i);
+                }
+            }
             return ret;
         };
-        GList.prototype.addSelection = function (index, scrollItToView) {
-            if (scrollItToView === void 0) { scrollItToView = false; }
+        GList.prototype.addSelection = function (index, scrollIntoView) {
+            if (scrollIntoView === void 0) { scrollIntoView = false; }
             if (this.$selectionMode == 3 /* None */)
                 return;
             this.checkVirtualList();
             if (this.$selectionMode == 0 /* Single */)
                 this.clearSelection();
-            if (scrollItToView)
+            if (scrollIntoView)
                 this.scrollToView(index);
-            index = this.itemIndexToChildIndex(index);
-            if (index < 0 || index >= this.$children.length)
-                return;
-            var obj = this.getChildAt(index);
+            this.$lastSelectedIndex = index;
+            var obj = null;
+            if (this.$virtual) {
+                var ii = this.$virtualItems[index];
+                if (ii.obj != null)
+                    obj = ii.obj;
+                ii.selected = true;
+            }
+            else
+                obj = this.getChildAt(index);
             if (obj != null && !obj.selected) {
                 obj.selected = true;
                 this.updateSelectionController(index);
             }
         };
         GList.prototype.removeSelection = function (index) {
-            if (index === void 0) { index = 0; }
             if (this.$selectionMode == 3 /* None */)
                 return;
-            index = this.itemIndexToChildIndex(index);
-            if (index >= this.$children.length)
-                return;
-            var obj = this.getChildAt(index);
-            if (obj != null && obj.selected)
+            var obj = null;
+            if (this.$virtual) {
+                var ii = this.$virtualItems[index];
+                if (ii.obj != null)
+                    obj = ii.obj;
+                ii.selected = false;
+            }
+            else
+                obj = this.getChildAt(index);
+            if (obj != null)
                 obj.selected = false;
         };
         GList.prototype.clearSelection = function () {
-            this.$children.forEach(function (child) {
-                if (child != null)
-                    child.selected = false;
-            }, this);
+            var i;
+            if (this.$virtual) {
+                for (i = 0; i < this.$realNumItems; i++) {
+                    var ii = this.$virtualItems[i];
+                    if (ii.obj instanceof fgui.GButton)
+                        ii.obj.selected = false;
+                    ii.selected = false;
+                }
+            }
+            else {
+                var cnt = this.$children.length;
+                for (i = 0; i < cnt; i++) {
+                    var obj = this.$children[i];
+                    if (obj != null)
+                        obj.selected = false;
+                }
+            }
+        };
+        GList.prototype.clearSelectionExcept = function (g) {
+            var i;
+            if (this.$virtual) {
+                for (i = 0; i < this.$realNumItems; i++) {
+                    var ii = this.$virtualItems[i];
+                    if (ii.obj != g) {
+                        if (ii.obj instanceof fgui.GButton)
+                            ii.obj.selected = false;
+                        ii.selected = false;
+                    }
+                }
+            }
+            else {
+                var cnt = this.$children.length;
+                for (i = 0; i < cnt; i++) {
+                    var obj = this.$children[i];
+                    if (obj != null && obj != g)
+                        obj.selected = false;
+                }
+            }
         };
         GList.prototype.selectAll = function () {
             this.checkVirtualList();
             var last = -1;
-            this.$children.forEach(function (child, index) {
-                if (child) {
-                    child.selected = true;
-                    last = index;
+            var i;
+            if (this.$virtual) {
+                for (i = 0; i < this.$realNumItems; i++) {
+                    var ii = this.$virtualItems[i];
+                    if (ii.obj instanceof fgui.GButton && !ii.obj.selected) {
+                        ii.obj.selected = true;
+                        last = i;
+                    }
+                    ii.selected = true;
                 }
-            }, this);
+            }
+            else {
+                var cnt = this.$children.length;
+                for (i = 0; i < cnt; i++) {
+                    var obj = this.$children[i];
+                    if (obj != null && !obj.selected) {
+                        obj.selected = true;
+                        last = i;
+                    }
+                }
+            }
             if (last != -1)
                 this.updateSelectionController(last);
         };
         GList.prototype.selectNone = function () {
-            this.$children.forEach(function (child) {
-                if (child && child instanceof fgui.GButton)
-                    child.selected = false;
-            }, this);
+            this.clearSelection();
         };
         GList.prototype.selectReverse = function () {
             this.checkVirtualList();
             var last = -1;
-            this.$children.forEach(function (child, index) {
-                if (child && child instanceof fgui.GButton) {
-                    child.selected = !child.selected;
-                    if (child.selected)
-                        last = index;
+            var i;
+            if (this.$virtual) {
+                for (i = 0; i < this.$realNumItems; i++) {
+                    var ii = this.$virtualItems[i];
+                    if (ii.obj instanceof fgui.GButton) {
+                        ii.obj.selected = !ii.obj.selected;
+                        if (ii.obj.selected)
+                            last = i;
+                    }
+                    ii.selected = !ii.selected;
                 }
-            }, this);
+            }
+            else {
+                var cnt = this.$children.length;
+                for (i = 0; i < cnt; i++) {
+                    var obj = this.$children[i];
+                    if (obj != null) {
+                        obj.selected = !obj.selected;
+                        if (obj.selected)
+                            last = i;
+                    }
+                }
+            }
             if (last != -1)
                 this.updateSelectionController(last);
         };
-        GList.prototype.handleArrowKey = function (dir) {
-            if (dir === void 0) { dir = 0; }
+        GList.prototype.handleArrowKey = function (key) {
             var index = this.selectedIndex;
             if (index == -1)
                 return;
-            var obj, current;
-            var i, k, cnt;
-            switch (dir) {
-                case 1://up
+            var current;
+            var k, i;
+            var obj;
+            switch (key) {
+                case 38 /* Up */:
                     if (this.$layout == 0 /* SingleColumn */ || this.$layout == 3 /* FlowVertical */) {
                         index--;
                         if (index >= 0) {
@@ -4836,8 +4950,8 @@ var fgui;
                     else if (this.$layout == 2 /* FlowHorizontal */ || this.$layout == 4 /* Pagination */) {
                         current = this.$children[index];
                         k = 0;
-                        for (var i_2 = index - 1; i_2 >= 0; i_2--) {
-                            obj = this.$children[i_2];
+                        for (i = index - 1; i >= 0; i--) {
+                            obj = this.$children[i];
                             if (obj.y != current.y) {
                                 current = obj;
                                 break;
@@ -4854,7 +4968,7 @@ var fgui;
                         }
                     }
                     break;
-                case 3://right
+                case 39 /* Right */:
                     if (this.$layout == 1 /* SingleRow */ || this.$layout == 2 /* FlowHorizontal */ || this.$layout == 4 /* Pagination */) {
                         index++;
                         if (index < this.$children.length) {
@@ -4865,7 +4979,7 @@ var fgui;
                     else if (this.$layout == 3 /* FlowVertical */) {
                         current = this.$children[index];
                         k = 0;
-                        cnt = this.$children.length;
+                        var cnt = this.$children.length;
                         for (i = index + 1; i < cnt; i++) {
                             obj = this.$children[i];
                             if (obj.x != current.x) {
@@ -4884,7 +4998,7 @@ var fgui;
                         }
                     }
                     break;
-                case 5://down
+                case 40 /* Down */:
                     if (this.$layout == 0 /* SingleColumn */ || this.$layout == 3 /* FlowVertical */) {
                         index++;
                         if (index < this.$children.length) {
@@ -4895,7 +5009,7 @@ var fgui;
                     else if (this.$layout == 2 /* FlowHorizontal */ || this.$layout == 4 /* Pagination */) {
                         current = this.$children[index];
                         k = 0;
-                        cnt = this.$children.length;
+                        var cnt = this.$children.length;
                         for (i = index + 1; i < cnt; i++) {
                             obj = this.$children[i];
                             if (obj.y != current.y) {
@@ -4914,7 +5028,7 @@ var fgui;
                         }
                     }
                     break;
-                case 7://left
+                case 37 /* Left */:
                     if (this.$layout == 1 /* SingleRow */ || this.$layout == 2 /* FlowHorizontal */ || this.$layout == 4 /* Pagination */) {
                         index--;
                         if (index >= 0) {
@@ -4946,7 +5060,7 @@ var fgui;
             }
         };
         GList.prototype.$clickItem = function (evt) {
-            if (this.$scrollPane != null && this.$scrollPane.$isDragged)
+            if (this.$scrollPane != null && this.$scrollPane.isDragging)
                 return;
             var item = fgui.GObject.castFromNativeObject(evt.currentTarget);
             if (!item)
@@ -4956,38 +5070,63 @@ var fgui;
                 this.$scrollPane.scrollToView(item, true);
             this.emit("__itemClick" /* ItemClick */, evt, item);
         };
-        GList.prototype.setSelectionOnEvent = function (item) {
-            if (!(item instanceof fgui.GButton) || this.$selectionMode == 3 /* None */)
+        GList.prototype.setSelectionOnEvent = function (button) {
+            if (!(button instanceof fgui.GButton) || this.$selectionMode == 3 /* None */)
                 return;
-            //let dontChangeLastIndex: boolean = false;
-            var index = this.getChildIndex(item);
+            var dontChangeLastIndex = false;
+            var index = this.childIndexToItemIndex(this.getChildIndex(button));
             if (this.$selectionMode == 0 /* Single */) {
-                if (!item.selected) {
-                    this.clearSelectionExcept(item);
-                    item.selected = true;
+                if (!button.selected) {
+                    this.clearSelectionExcept(button);
+                    button.selected = true;
                 }
             }
             else {
-                if (!item.selected) {
-                    this.clearSelectionExcept(item);
-                    item.selected = true;
+                if (fgui.utils.DOMEventManager.inst.isKeyPressed(16 /* Shift */)) {
+                    if (!button.selected) {
+                        if (this.$lastSelectedIndex != -1) {
+                            var min = Math.min(this.$lastSelectedIndex, index);
+                            var max = Math.min(Math.max(this.$lastSelectedIndex, index), this.numItems - 1);
+                            var i = void 0;
+                            if (this.$virtual) {
+                                for (i = min; i <= max; i++) {
+                                    var ii = this.$virtualItems[i];
+                                    if (ii.obj instanceof fgui.GButton)
+                                        ii.obj.selected = true;
+                                    ii.selected = true;
+                                }
+                            }
+                            else {
+                                for (i = min; i <= max; i++) {
+                                    var obj = this.getChildAt(i);
+                                    if (obj != null)
+                                        obj.selected = true;
+                                }
+                            }
+                            dontChangeLastIndex = true;
+                        }
+                        else
+                            button.selected = true;
+                    }
                 }
-                else
-                    this.clearSelectionExcept(item);
+                else if (fgui.utils.DOMEventManager.inst.isKeyPressed(17 /* Ctrl */) || this.$selectionMode == 2 /* Multiple_SingleClick */)
+                    button.selected = !button.selected;
+                else {
+                    if (!button.selected) {
+                        this.clearSelectionExcept(button);
+                        button.selected = true;
+                    }
+                    else
+                        this.clearSelectionExcept(button);
+                }
             }
-            //if (!dontChangeLastIndex)
-            //    this.$lastSelectedIndex = index;
-            if (item.selected)
+            if (!dontChangeLastIndex)
+                this.$lastSelectedIndex = index;
+            if (button.selected)
                 this.updateSelectionController(index);
         };
-        GList.prototype.clearSelectionExcept = function (obj) {
-            this.$children.forEach(function (child) {
-                if (child && child instanceof fgui.GButton && child.selected)
-                    child.selected = false;
-            }, this);
-        };
         GList.prototype.resizeToFit = function (itemCount, minSize) {
-            if (itemCount === void 0) { itemCount = Number.POSITIVE_INFINITY; }
+            if (itemCount === void 0) { itemCount = 1000000; }
             if (minSize === void 0) { minSize = 0; }
             this.ensureBoundsCorrect();
             var curCount = this.numItems;
@@ -5008,7 +5147,7 @@ var fgui;
             }
             else {
                 var i = itemCount - 1;
-                var obj = null;
+                var obj = void 0;
                 while (i >= 0) {
                     obj = this.getChildAt(i);
                     if (!this.foldInvisibleItems || obj.visible)
@@ -5039,11 +5178,13 @@ var fgui;
             }
         };
         GList.prototype.getMaxItemWidth = function () {
+            var cnt = this.$children.length;
             var max = 0;
-            this.$children.forEach(function (child) {
-                if (child && child.width > max)
+            for (var i = 0; i < cnt; i++) {
+                var child = this.getChildAt(i);
+                if (child.width > max)
                     max = child.width;
-            }, this);
+            }
             return max;
         };
         GList.prototype.handleSizeChanged = function () {
@@ -5058,7 +5199,8 @@ var fgui;
                 this.selectedIndex = c.selectedIndex;
         };
         GList.prototype.updateSelectionController = function (index) {
-            if (this.$selectionController != null && !this.$selectionController.$updating && index < this.$selectionController.pageCount) {
+            if (this.$selectionController != null && !this.$selectionController.$updating
+                && index < this.$selectionController.pageCount) {
                 var c = this.$selectionController;
                 this.$selectionController = null;
                 c.selectedIndex = index;
@@ -5066,6 +5208,7 @@ var fgui;
             }
         };
         GList.prototype.getSnappingPosition = function (xValue, yValue, resultPoint) {
+            if (resultPoint === void 0) { resultPoint = null; }
             if (this.$virtual) {
                 if (!resultPoint)
                     resultPoint = new PIXI.Point();
@@ -5073,25 +5216,25 @@ var fgui;
                 var index = void 0;
                 if (this.$layout == 0 /* SingleColumn */ || this.$layout == 2 /* FlowHorizontal */) {
                     saved = yValue;
-                    GList.posHelper = yValue;
+                    GList.$lastPosHelper = yValue;
                     index = this.getIndexOnPos1(false);
-                    yValue = GList.posHelper;
+                    yValue = GList.$lastPosHelper;
                     if (index < this.$virtualItems.length && saved - yValue > this.$virtualItems[index].height / 2 && index < this.$realNumItems)
                         yValue += this.$virtualItems[index].height + this.$lineGap;
                 }
                 else if (this.$layout == 1 /* SingleRow */ || this.$layout == 3 /* FlowVertical */) {
                     saved = xValue;
-                    GList.posHelper = xValue;
+                    GList.$lastPosHelper = xValue;
                     index = this.getIndexOnPos2(false);
-                    xValue = GList.posHelper;
+                    xValue = GList.$lastPosHelper;
                     if (index < this.$virtualItems.length && saved - xValue > this.$virtualItems[index].width / 2 && index < this.$realNumItems)
                         xValue += this.$virtualItems[index].width + this.$columnGap;
                 }
                 else {
                     saved = xValue;
-                    GList.posHelper = xValue;
+                    GList.$lastPosHelper = xValue;
                     index = this.getIndexOnPos3(false);
-                    xValue = GList.posHelper;
+                    xValue = GList.$lastPosHelper;
                     if (index < this.$virtualItems.length && saved - xValue > this.$virtualItems[index].width / 2 && index < this.$realNumItems)
                         xValue += this.$virtualItems[index].width + this.$columnGap;
                 }
@@ -5099,13 +5242,12 @@ var fgui;
                 resultPoint.y = yValue;
                 return resultPoint;
             }
-            else {
+            else
                 return _super.prototype.getSnappingPosition.call(this, xValue, yValue, resultPoint);
-            }
         };
-        GList.prototype.scrollToView = function (index, ani, setFirst) {
+        GList.prototype.scrollToView = function (index, ani, snapToFirst) {
             if (ani === void 0) { ani = false; }
-            if (setFirst === void 0) { setFirst = false; }
+            if (snapToFirst === void 0) { snapToFirst = false; }
             if (this.$virtual) {
                 if (this.$numItems == 0)
                     return;
@@ -5132,19 +5274,17 @@ var fgui;
                     var page = index / (this.$curLineItemCount * this.$curLineItemCount2);
                     rect = new PIXI.Rectangle(page * this.viewWidth + (index % this.$curLineItemCount) * (ii.width + this.$columnGap), (index / this.$curLineItemCount) % this.$curLineItemCount2 * (ii.height + this.$lineGap), ii.width, ii.height);
                 }
-                //set to top to prevent from position changing caused by the item size changing (size-changeable item)
-                setFirst = true;
+                //the position will be also changed if the height of its parent (if changeable) is being changed, so here we need to forcely set this to true
+                snapToFirst = true;
                 if (this.$scrollPane != null)
-                    this.$scrollPane.scrollToView(rect, ani, setFirst);
+                    this.$scrollPane.scrollToView(rect, ani, snapToFirst);
             }
             else {
                 var obj = this.getChildAt(index);
-                if (obj != null) {
-                    if (this.$scrollPane != null)
-                        this.$scrollPane.scrollToView(obj, ani, setFirst);
-                    else if (this.parent != null && this.parent.scrollPane != null)
-                        this.parent.scrollPane.scrollToView(obj, ani, setFirst);
-                }
+                if (this.$scrollPane != null)
+                    this.$scrollPane.scrollToView(obj, ani, snapToFirst);
+                else if (this.parent != null && this.parent.scrollPane != null)
+                    this.parent.scrollPane.scrollToView(obj, ani, snapToFirst);
             }
         };
         GList.prototype.getFirstChildInView = function () {
@@ -5173,9 +5313,8 @@ var fgui;
         GList.prototype.itemIndexToChildIndex = function (index) {
             if (!this.$virtual)
                 return index;
-            if (this.$layout == 4 /* Pagination */) {
+            if (this.$layout == 4 /* Pagination */)
                 return this.getChildIndex(this.$virtualItems[index].obj);
-            }
             else {
                 if (this.$loop && this.$numItems > 0) {
                     var j = this.$firstIndex % this.$numItems;
@@ -5192,7 +5331,6 @@ var fgui;
         GList.prototype.setVirtual = function () {
             this.$setVirtual(false);
         };
-        /**set as virtual list with loop mode */
         GList.prototype.setVirtualAndLoop = function () {
             this.$setVirtual(true);
         };
@@ -5212,19 +5350,24 @@ var fgui;
                 if (this.$itemSize == null) {
                     this.$itemSize = new PIXI.Point();
                     var obj = this.getFromPool(null);
-                    if (obj == null) {
-                        throw new Error("Virtual list must have a default list item resource specified.");
-                    }
+                    if (obj == null)
+                        throw new Error("Virtual list must have a default list item resource specified through list.defaultItem = resUrl.");
                     else {
                         this.$itemSize.x = obj.width;
                         this.$itemSize.y = obj.height;
                     }
                     this.returnToPool(obj);
                 }
-                if (this.$layout == 0 /* SingleColumn */ || this.$layout == 2 /* FlowHorizontal */)
+                if (this.$layout == 0 /* SingleColumn */ || this.$layout == 2 /* FlowHorizontal */) {
                     this.$scrollPane.scrollSpeed = this.$itemSize.y;
-                else
+                    if (this.$loop)
+                        this.$scrollPane.$loop = 2;
+                }
+                else {
                     this.$scrollPane.scrollSpeed = this.$itemSize.x;
+                    if (this.$loop)
+                        this.$scrollPane.$loop = 1;
+                }
                 this.$scrollPane.on("__scroll" /* SCROLL */, this.$scrolled, this);
                 this.setVirtualListChangedFlag(true);
             }
@@ -5236,48 +5379,49 @@ var fgui;
                 else
                     return this.$children.length;
             },
-            /**
-             * set item count for the list.
-             * 1, if the list is a normal list (not virtual), the set number of items will be created inside the list.
-             * 2, if the list is a virtual list, only count of visible items will be created inside the list's viewport.
-             */
             set: function (value) {
+                var i;
                 if (this.$virtual) {
                     if (this.itemRenderer == null)
                         throw new Error("list.itemRenderer is required");
                     this.$numItems = value;
                     if (this.$loop)
-                        this.$realNumItems = this.$numItems * 5; //enlarge for loop
+                        this.$realNumItems = this.$numItems * 6; //enlarge for loop
                     else
                         this.$realNumItems = this.$numItems;
+                    //increase only
                     var oldCount = this.$virtualItems.length;
                     if (this.$realNumItems > oldCount) {
-                        for (var i = oldCount; i < this.$realNumItems; i++) {
+                        for (i = oldCount; i < this.$realNumItems; i++) {
                             var ii = new ItemInfo();
                             ii.width = this.$itemSize.x;
                             ii.height = this.$itemSize.y;
                             this.$virtualItems.push(ii);
                         }
                     }
-                    if (this.$virtualListChanged != 0)
-                        fgui.GTimer.inst.remove(this._refreshVirtualList, this);
-                    this._refreshVirtualList();
+                    else {
+                        for (i = this.$realNumItems; i < oldCount; i++)
+                            this.$virtualItems[i].selected = false;
+                    }
+                    if (this.$virtualListChanged != 0 /* None */)
+                        fgui.GTimer.inst.remove(this.$refreshVirtualList, this);
+                    //refresh now
+                    this.$refreshVirtualList();
                 }
                 else {
                     var cnt = this.$children.length;
                     if (value > cnt) {
-                        for (var i = cnt; i < value; i++) {
+                        for (i = cnt; i < value; i++) {
                             if (this.itemProvider == null)
                                 this.addItemFromPool();
                             else
                                 this.addItemFromPool(this.itemProvider(i));
                         }
                     }
-                    else {
+                    else
                         this.removeChildrenToPool(value, cnt);
-                    }
                     if (this.itemRenderer != null) {
-                        for (var i = 0; i < value; i++)
+                        for (i = 0; i < value; i++)
                             this.itemRenderer(i, this.getChildAt(i));
                     }
                 }
@@ -5289,22 +5433,22 @@ var fgui;
             this.setVirtualListChangedFlag(false);
         };
         GList.prototype.checkVirtualList = function () {
-            if (this.$virtualListChanged != 0) {
-                this._refreshVirtualList();
-                fgui.GTimer.inst.remove(this._refreshVirtualList, this);
+            if (this.$virtualListChanged != 0 /* None */) {
+                this.$refreshVirtualList();
+                fgui.GTimer.inst.remove(this.$refreshVirtualList, this);
             }
         };
         GList.prototype.setVirtualListChangedFlag = function (layoutChanged) {
             if (layoutChanged === void 0) { layoutChanged = false; }
             if (layoutChanged)
-                this.$virtualListChanged = 2;
-            else if (this.$virtualListChanged == 0)
-                this.$virtualListChanged = 1;
-            fgui.GTimer.inst.callLater(this._refreshVirtualList, this);
+                this.$virtualListChanged = 2 /* SizeChanged */;
+            else if (this.$virtualListChanged == 0 /* None */)
+                this.$virtualListChanged = 1 /* ContentChanged */;
+            fgui.GTimer.inst.callLater(this.$refreshVirtualList, this);
         };
-        GList.prototype._refreshVirtualList = function () {
-            var layoutChanged = this.$virtualListChanged == 2;
-            this.$virtualListChanged = 0;
+        GList.prototype.$refreshVirtualList = function () {
+            var layoutChanged = this.$virtualListChanged == 2 /* SizeChanged */;
+            this.$virtualListChanged = 0 /* None */;
             this.$eventLocked = true;
             if (layoutChanged) {
                 if (this.$layout == 0 /* SingleColumn */ || this.$layout == 1 /* SingleRow */)
@@ -5369,7 +5513,7 @@ var fgui;
                     if (cw > 0)
                         cw -= this.$columnGap;
                     if (this.$autoResizeItem)
-                        ch = this.scrollPane.viewHeight;
+                        ch = this.$scrollPane.viewHeight;
                     else {
                         for (i = 0; i < len2; i++)
                             ch += this.$virtualItems[i].height + this.$lineGap;
@@ -5388,12 +5532,12 @@ var fgui;
             this.$eventLocked = false;
             this.handleScroll(true);
         };
-        GList.prototype.$scrolled = function (evt) {
+        GList.prototype.$scrolled = function () {
             this.handleScroll(false);
         };
         GList.prototype.getIndexOnPos1 = function (forceUpdate) {
             if (this.$realNumItems < this.$curLineItemCount) {
-                GList.posHelper = 0;
+                GList.$lastPosHelper = 0;
                 return 0;
             }
             var i;
@@ -5401,27 +5545,27 @@ var fgui;
             var pos3;
             if (this.numChildren > 0 && !forceUpdate) {
                 pos2 = this.getChildAt(0).y;
-                if (pos2 > GList.posHelper) {
+                if (pos2 > GList.$lastPosHelper) {
                     for (i = this.$firstIndex - this.$curLineItemCount; i >= 0; i -= this.$curLineItemCount) {
                         pos2 -= (this.$virtualItems[i].height + this.$lineGap);
-                        if (pos2 <= GList.posHelper) {
-                            GList.posHelper = pos2;
+                        if (pos2 <= GList.$lastPosHelper) {
+                            GList.$lastPosHelper = pos2;
                             return i;
                         }
                     }
-                    GList.posHelper = 0;
+                    GList.$lastPosHelper = 0;
                     return 0;
                 }
                 else {
                     for (i = this.$firstIndex; i < this.$realNumItems; i += this.$curLineItemCount) {
                         pos3 = pos2 + this.$virtualItems[i].height + this.$lineGap;
-                        if (pos3 > GList.posHelper) {
-                            GList.posHelper = pos2;
+                        if (pos3 > GList.$lastPosHelper) {
+                            GList.$lastPosHelper = pos2;
                             return i;
                         }
                         pos2 = pos3;
                     }
-                    GList.posHelper = pos2;
+                    GList.$lastPosHelper = pos2;
                     return this.$realNumItems - this.$curLineItemCount;
                 }
             }
@@ -5429,19 +5573,19 @@ var fgui;
                 pos2 = 0;
                 for (i = 0; i < this.$realNumItems; i += this.$curLineItemCount) {
                     pos3 = pos2 + this.$virtualItems[i].height + this.$lineGap;
-                    if (pos3 > GList.posHelper) {
-                        GList.posHelper = pos2;
+                    if (pos3 > GList.$lastPosHelper) {
+                        GList.$lastPosHelper = pos2;
                         return i;
                     }
                     pos2 = pos3;
                 }
-                GList.posHelper = pos2;
+                GList.$lastPosHelper = pos2;
                 return this.$realNumItems - this.$curLineItemCount;
             }
         };
         GList.prototype.getIndexOnPos2 = function (forceUpdate) {
             if (this.$realNumItems < this.$curLineItemCount) {
-                GList.posHelper = 0;
+                GList.$lastPosHelper = 0;
                 return 0;
             }
             var i;
@@ -5449,27 +5593,27 @@ var fgui;
             var pos3;
             if (this.numChildren > 0 && !forceUpdate) {
                 pos2 = this.getChildAt(0).x;
-                if (pos2 > GList.posHelper) {
+                if (pos2 > GList.$lastPosHelper) {
                     for (i = this.$firstIndex - this.$curLineItemCount; i >= 0; i -= this.$curLineItemCount) {
                         pos2 -= (this.$virtualItems[i].width + this.$columnGap);
-                        if (pos2 <= GList.posHelper) {
-                            GList.posHelper = pos2;
+                        if (pos2 <= GList.$lastPosHelper) {
+                            GList.$lastPosHelper = pos2;
                             return i;
                         }
                     }
-                    GList.posHelper = 0;
+                    GList.$lastPosHelper = 0;
                     return 0;
                 }
                 else {
                     for (i = this.$firstIndex; i < this.$realNumItems; i += this.$curLineItemCount) {
                         pos3 = pos2 + this.$virtualItems[i].width + this.$columnGap;
-                        if (pos3 > GList.posHelper) {
-                            GList.posHelper = pos2;
+                        if (pos3 > GList.$lastPosHelper) {
+                            GList.$lastPosHelper = pos2;
                             return i;
                         }
                         pos2 = pos3;
                     }
-                    GList.posHelper = pos2;
+                    GList.$lastPosHelper = pos2;
                     return this.$realNumItems - this.$curLineItemCount;
                 }
             }
@@ -5477,96 +5621,69 @@ var fgui;
                 pos2 = 0;
                 for (i = 0; i < this.$realNumItems; i += this.$curLineItemCount) {
                     pos3 = pos2 + this.$virtualItems[i].width + this.$columnGap;
-                    if (pos3 > GList.posHelper) {
-                        GList.posHelper = pos2;
+                    if (pos3 > GList.$lastPosHelper) {
+                        GList.$lastPosHelper = pos2;
                         return i;
                     }
                     pos2 = pos3;
                 }
-                GList.posHelper = pos2;
+                GList.$lastPosHelper = pos2;
                 return this.$realNumItems - this.$curLineItemCount;
             }
         };
         GList.prototype.getIndexOnPos3 = function (forceUpdate) {
             if (this.$realNumItems < this.$curLineItemCount) {
-                GList.posHelper = 0;
+                GList.$lastPosHelper = 0;
                 return 0;
             }
             var viewWidth = this.viewWidth;
-            var page = Math.floor(GList.posHelper / viewWidth);
+            var page = Math.floor(GList.$lastPosHelper / viewWidth);
             var startIndex = page * (this.$curLineItemCount * this.$curLineItemCount2);
-            var pos2 = page * viewWidth;
-            var pos3;
             var i;
+            var pos3;
+            var pos2 = page * viewWidth;
             for (i = 0; i < this.$curLineItemCount; i++) {
                 pos3 = pos2 + this.$virtualItems[startIndex + i].width + this.$columnGap;
-                if (pos3 > GList.posHelper) {
-                    GList.posHelper = pos2;
+                if (pos3 > GList.$lastPosHelper) {
+                    GList.$lastPosHelper = pos2;
                     return startIndex + i;
                 }
                 pos2 = pos3;
             }
-            GList.posHelper = pos2;
+            GList.$lastPosHelper = pos2;
             return startIndex + this.$curLineItemCount - 1;
         };
         GList.prototype.handleScroll = function (forceUpdate) {
             if (this.$eventLocked)
                 return;
-            var pos;
-            var roundSize;
+            this.$enterCounter = 0;
             if (this.$layout == 0 /* SingleColumn */ || this.$layout == 2 /* FlowHorizontal */) {
-                if (this.$loop) {
-                    pos = this.$scrollPane.scrollingPosY;
-                    //key: scroll to head/tail then re-pos
-                    roundSize = this.$numItems * (this.$itemSize.y + this.$lineGap);
-                    if (pos == 0)
-                        this.$scrollPane.posY = roundSize;
-                    else if (pos == this.$scrollPane.contentHeight - this.$scrollPane.viewHeight)
-                        this.$scrollPane.posY = this.$scrollPane.contentHeight - roundSize - this.viewHeight;
-                }
                 this.handleScroll1(forceUpdate);
+                this.handleArchOrder1();
             }
             else if (this.$layout == 1 /* SingleRow */ || this.$layout == 3 /* FlowVertical */) {
-                if (this.$loop) {
-                    pos = this.$scrollPane.scrollingPosX;
-                    //key: scroll to head/tail then re-pos
-                    roundSize = this.$numItems * (this.$itemSize.x + this.$columnGap);
-                    if (pos == 0)
-                        this.$scrollPane.posX = roundSize;
-                    else if (pos == this.$scrollPane.contentWidth - this.$scrollPane.viewWidth)
-                        this.$scrollPane.posX = this.$scrollPane.contentWidth - roundSize - this.viewWidth;
-                }
                 this.handleScroll2(forceUpdate);
+                this.handleArchOrder2();
             }
-            else {
-                if (this.$loop) {
-                    pos = this.$scrollPane.scrollingPosX;
-                    //key: scroll to head/tail then re-pos
-                    roundSize = Math.floor(this.$numItems / (this.$curLineItemCount * this.$curLineItemCount2)) * this.viewWidth;
-                    if (pos == 0)
-                        this.$scrollPane.posX = roundSize;
-                    else if (pos == this.$scrollPane.contentWidth - this.$scrollPane.viewWidth)
-                        this.$scrollPane.posX = this.$scrollPane.contentWidth - roundSize - this.viewWidth;
-                }
+            else
                 this.handleScroll3(forceUpdate);
-            }
             this.$boundsChanged = false;
         };
         GList.prototype.handleScroll1 = function (forceUpdate) {
-            GList.scrollEnterCounter++;
-            if (GList.scrollEnterCounter > 3)
-                return;
-            var pos = this.$scrollPane.scrollingPosY;
-            var max = pos + this.$scrollPane.viewHeight;
-            var end = max == this.$scrollPane.contentHeight; //need to scroll to the end whatever the size currently is.
-            //find the first item around the current pos
-            GList.posHelper = pos;
-            var newFirstIndex = this.getIndexOnPos1(forceUpdate);
-            pos = GList.posHelper;
-            if (newFirstIndex == this.$firstIndex && !forceUpdate) {
-                GList.scrollEnterCounter--;
+            this.$enterCounter++;
+            if (this.$enterCounter > 3) {
+                console.warn("this list view cannot be filled full as the itemRenderer function always returns an item with different size.");
                 return;
             }
+            var pos = this.$scrollPane.scrollingPosY;
+            var max = pos + this.$scrollPane.viewHeight;
+            var end = max == this.$scrollPane.contentHeight; //indicates we need to scroll to end in spite of content size changing
+            //find the first item from current pos
+            GList.$lastPosHelper = pos;
+            var newFirstIndex = this.getIndexOnPos1(forceUpdate);
+            if (newFirstIndex == this.$firstIndex && !forceUpdate)
+                return;
+            pos = GList.$lastPosHelper;
             var oldFirstIndex = this.$firstIndex;
             this.$firstIndex = newFirstIndex;
             var curIndex = newFirstIndex;
@@ -5582,7 +5699,7 @@ var fgui;
             var ii, ii2;
             var i, j;
             var partSize = (this.$scrollPane.viewWidth - this.$columnGap * (this.$curLineItemCount - 1)) / this.$curLineItemCount;
-            GList.posHelper++;
+            this.$itemInfoVer++;
             while (curIndex < this.$realNumItems && (end || curY < max)) {
                 ii = this.$virtualItems[curIndex];
                 if (ii.obj == null || forceUpdate) {
@@ -5593,16 +5710,20 @@ var fgui;
                         url = fgui.UIPackage.normalizeURL(url);
                     }
                     if (ii.obj != null && ii.obj.resourceURL != url) {
+                        if (ii.obj instanceof fgui.GButton)
+                            ii.selected = ii.obj.selected;
                         this.removeChildToPool(ii.obj);
                         ii.obj = null;
                     }
                 }
                 if (ii.obj == null) {
-                    //search for a best item to reuse, ensure everytime recreate items after refreshing we render less items
+                    //search for a most suitable item to reuse in order to render or create less item when refresh
                     if (forward) {
                         for (j = reuseIndex; j >= oldFirstIndex; j--) {
                             ii2 = this.$virtualItems[j];
-                            if (ii2.obj != null && ii2.updateFlag != GList.itemInfoReuseFlag && ii2.obj.resourceURL == url) {
+                            if (ii2.obj != null && ii2.updateFlag != this.$itemInfoVer && ii2.obj.resourceURL == url) {
+                                if (ii2.obj instanceof fgui.GButton)
+                                    ii2.selected = ii2.obj.selected;
                                 ii.obj = ii2.obj;
                                 ii2.obj = null;
                                 if (j == reuseIndex)
@@ -5614,7 +5735,9 @@ var fgui;
                     else {
                         for (j = reuseIndex; j <= lastIndex; j++) {
                             ii2 = this.$virtualItems[j];
-                            if (ii2.obj != null && ii2.updateFlag != GList.itemInfoReuseFlag && ii2.obj.resourceURL == url) {
+                            if (ii2.obj != null && ii2.updateFlag != this.$itemInfoVer && ii2.obj.resourceURL == url) {
+                                if (ii2.obj instanceof fgui.GButton)
+                                    ii2.selected = ii2.obj.selected;
                                 ii.obj = ii2.obj;
                                 ii2.obj = null;
                                 if (j == reuseIndex)
@@ -5623,9 +5746,8 @@ var fgui;
                             }
                         }
                     }
-                    if (ii.obj != null) {
+                    if (ii.obj != null)
                         this.setChildIndex(ii.obj, forward ? curIndex - newFirstIndex : this.numChildren);
-                    }
                     else {
                         ii.obj = this.$pool.get(url);
                         if (forward)
@@ -5634,7 +5756,7 @@ var fgui;
                             this.addChild(ii.obj);
                     }
                     if (ii.obj instanceof fgui.GButton)
-                        ii.obj.selected = false;
+                        ii.obj.selected = ii.selected;
                     needRender = true;
                 }
                 else
@@ -5646,14 +5768,14 @@ var fgui;
                     if (curIndex % this.$curLineItemCount == 0) {
                         deltaSize += Math.ceil(ii.obj.height) - ii.height;
                         if (curIndex == newFirstIndex && oldFirstIndex > newFirstIndex) {
-                            //pad gap to avoid the scrolling jump if the new coming item's size changes while scrolling down
+                            //when scrolling down, we need to make compensation for the position to avoid flickering if the item's size changes
                             firstItemDeltaSize = Math.ceil(ii.obj.height) - ii.height;
                         }
                     }
                     ii.width = Math.ceil(ii.obj.width);
                     ii.height = Math.ceil(ii.obj.height);
                 }
-                ii.updateFlag = GList.itemInfoReuseFlag;
+                ii.updateFlag = this.$itemInfoVer;
                 ii.obj.setXY(curX, curY);
                 if (curIndex == newFirstIndex)
                     max += ii.height;
@@ -5666,7 +5788,9 @@ var fgui;
             }
             for (i = 0; i < oldCount; i++) {
                 ii = this.$virtualItems[oldFirstIndex + i];
-                if (ii.updateFlag != GList.itemInfoReuseFlag && ii.obj != null) {
+                if (ii.updateFlag != this.$itemInfoVer && ii.obj != null) {
+                    if (ii.obj instanceof fgui.GButton)
+                        ii.selected = ii.obj.selected;
                     this.removeChildToPool(ii.obj);
                     ii.obj = null;
                 }
@@ -5674,23 +5798,22 @@ var fgui;
             if (deltaSize != 0 || firstItemDeltaSize != 0)
                 this.$scrollPane.changeContentSizeOnScrolling(0, deltaSize, 0, firstItemDeltaSize);
             if (curIndex > 0 && this.numChildren > 0 && this.$container.y < 0 && this.getChildAt(0).y > -this.$container.y)
-                this.handleScroll1(false);
-            GList.scrollEnterCounter--;
+                this.handleScroll1(false); //recursive
         };
         GList.prototype.handleScroll2 = function (forceUpdate) {
-            GList.scrollEnterCounter++;
-            if (GList.scrollEnterCounter > 3)
+            this.$enterCounter++;
+            if (this.$enterCounter > 3) {
+                console.warn("this list view cannot be filled full as the itemRenderer function always returns an item with different size.");
                 return;
+            }
             var pos = this.$scrollPane.scrollingPosX;
             var max = pos + this.$scrollPane.viewWidth;
             var end = pos == this.$scrollPane.contentWidth;
-            GList.posHelper = pos;
+            GList.$lastPosHelper = pos;
             var newFirstIndex = this.getIndexOnPos2(forceUpdate);
-            pos = GList.posHelper;
-            if (newFirstIndex == this.$firstIndex && !forceUpdate) {
-                GList.scrollEnterCounter--;
+            if (newFirstIndex == this.$firstIndex && !forceUpdate)
                 return;
-            }
+            pos = GList.$lastPosHelper;
             var oldFirstIndex = this.$firstIndex;
             this.$firstIndex = newFirstIndex;
             var curIndex = newFirstIndex;
@@ -5706,7 +5829,7 @@ var fgui;
             var ii, ii2;
             var i, j;
             var partSize = (this.$scrollPane.viewHeight - this.$lineGap * (this.$curLineItemCount - 1)) / this.$curLineItemCount;
-            GList.itemInfoReuseFlag++;
+            this.$itemInfoVer++;
             while (curIndex < this.$realNumItems && (end || curX < max)) {
                 ii = this.$virtualItems[curIndex];
                 if (ii.obj == null || forceUpdate) {
@@ -5717,6 +5840,8 @@ var fgui;
                         url = fgui.UIPackage.normalizeURL(url);
                     }
                     if (ii.obj != null && ii.obj.resourceURL != url) {
+                        if (ii.obj instanceof fgui.GButton)
+                            ii.selected = ii.obj.selected;
                         this.removeChildToPool(ii.obj);
                         ii.obj = null;
                     }
@@ -5725,7 +5850,9 @@ var fgui;
                     if (forward) {
                         for (j = reuseIndex; j >= oldFirstIndex; j--) {
                             ii2 = this.$virtualItems[j];
-                            if (ii2.obj != null && ii2.updateFlag != GList.itemInfoReuseFlag && ii2.obj.resourceURL == url) {
+                            if (ii2.obj != null && ii2.updateFlag != this.$itemInfoVer && ii2.obj.resourceURL == url) {
+                                if (ii2.obj instanceof fgui.GButton)
+                                    ii2.selected = ii2.obj.selected;
                                 ii.obj = ii2.obj;
                                 ii2.obj = null;
                                 if (j == reuseIndex)
@@ -5737,7 +5864,9 @@ var fgui;
                     else {
                         for (j = reuseIndex; j <= lastIndex; j++) {
                             ii2 = this.$virtualItems[j];
-                            if (ii2.obj != null && ii2.updateFlag != GList.itemInfoReuseFlag && ii2.obj.resourceURL == url) {
+                            if (ii2.obj != null && ii2.updateFlag != this.$itemInfoVer && ii2.obj.resourceURL == url) {
+                                if (ii2.obj instanceof fgui.GButton)
+                                    ii2.selected = ii2.obj.selected;
                                 ii.obj = ii2.obj;
                                 ii2.obj = null;
                                 if (j == reuseIndex)
@@ -5746,9 +5875,8 @@ var fgui;
                             }
                         }
                     }
-                    if (ii.obj != null) {
+                    if (ii.obj != null)
                         this.setChildIndex(ii.obj, forward ? curIndex - newFirstIndex : this.numChildren);
-                    }
                     else {
                         ii.obj = this.$pool.get(url);
                         if (forward)
@@ -5757,7 +5885,7 @@ var fgui;
                             this.addChild(ii.obj);
                     }
                     if (ii.obj instanceof fgui.GButton)
-                        ii.obj.selected = false;
+                        ii.obj.selected = ii.selected;
                     needRender = true;
                 }
                 else
@@ -5768,14 +5896,13 @@ var fgui;
                     this.itemRenderer(curIndex % this.$numItems, ii.obj);
                     if (curIndex % this.$curLineItemCount == 0) {
                         deltaSize += Math.ceil(ii.obj.width) - ii.width;
-                        if (curIndex == newFirstIndex && oldFirstIndex > newFirstIndex) {
+                        if (curIndex == newFirstIndex && oldFirstIndex > newFirstIndex)
                             firstItemDeltaSize = Math.ceil(ii.obj.width) - ii.width;
-                        }
                     }
                     ii.width = Math.ceil(ii.obj.width);
                     ii.height = Math.ceil(ii.obj.height);
                 }
-                ii.updateFlag = GList.itemInfoReuseFlag;
+                ii.updateFlag = this.$itemInfoVer;
                 ii.obj.setXY(curX, curY);
                 if (curIndex == newFirstIndex)
                     max += ii.width;
@@ -5788,7 +5915,9 @@ var fgui;
             }
             for (i = 0; i < oldCount; i++) {
                 ii = this.$virtualItems[oldFirstIndex + i];
-                if (ii.updateFlag != GList.itemInfoReuseFlag && ii.obj != null) {
+                if (ii.updateFlag != this.$itemInfoVer && ii.obj != null) {
+                    if (ii.obj instanceof fgui.GButton)
+                        ii.selected = ii.obj.selected;
                     this.removeChildToPool(ii.obj);
                     ii.obj = null;
                 }
@@ -5797,18 +5926,17 @@ var fgui;
                 this.$scrollPane.changeContentSizeOnScrolling(deltaSize, 0, firstItemDeltaSize, 0);
             if (curIndex > 0 && this.numChildren > 0 && this.$container.x < 0 && this.getChildAt(0).x > -this.$container.x)
                 this.handleScroll2(false);
-            GList.scrollEnterCounter--;
         };
         GList.prototype.handleScroll3 = function (forceUpdate) {
             var pos = this.$scrollPane.scrollingPosX;
-            GList.posHelper = pos;
+            GList.$lastPosHelper = pos;
             var newFirstIndex = this.getIndexOnPos3(forceUpdate);
-            pos = GList.posHelper;
             if (newFirstIndex == this.$firstIndex && !forceUpdate)
                 return;
+            pos = GList.$lastPosHelper;
             var oldFirstIndex = this.$firstIndex;
             this.$firstIndex = newFirstIndex;
-            //items are all the same height in pagination mode, so just render a full page
+            //height-sync is not supported in pagnation mode, so just only render 1 page
             var reuseIndex = oldFirstIndex;
             var virtualItemCount = this.$virtualItems.length;
             var pageSize = this.$curLineItemCount * this.$curLineItemCount2;
@@ -5824,8 +5952,8 @@ var fgui;
             var url = this.$defaultItem;
             var partWidth = (this.$scrollPane.viewWidth - this.$columnGap * (this.$curLineItemCount - 1)) / this.$curLineItemCount;
             var partHeight = (this.$scrollPane.viewHeight - this.$lineGap * (this.$curLineItemCount2 - 1)) / this.$curLineItemCount2;
-            GList.itemInfoReuseFlag++;
-            //make the items need to be used first
+            this.$itemInfoVer++;
+            //add mark for items used this time
             for (i = startIndex; i < lastIndex; i++) {
                 if (i >= this.$realNumItems)
                     continue;
@@ -5839,7 +5967,7 @@ var fgui;
                         continue;
                 }
                 ii = this.$virtualItems[i];
-                ii.updateFlag = GList.itemInfoReuseFlag;
+                ii.updateFlag = this.$itemInfoVer;
             }
             var lastObj = null;
             var insertIndex = 0;
@@ -5847,13 +5975,15 @@ var fgui;
                 if (i >= this.$realNumItems)
                     continue;
                 ii = this.$virtualItems[i];
-                if (ii.updateFlag != GList.itemInfoReuseFlag)
+                if (ii.updateFlag != this.$itemInfoVer)
                     continue;
                 if (ii.obj == null) {
-                    //see if there is reusable items
+                    //find if any free item can be used
                     while (reuseIndex < virtualItemCount) {
                         ii2 = this.$virtualItems[reuseIndex];
-                        if (ii2.obj != null && ii2.updateFlag != GList.itemInfoReuseFlag) {
+                        if (ii2.obj != null && ii2.updateFlag != this.$itemInfoVer) {
+                            if (ii2.obj instanceof fgui.GButton)
+                                ii2.selected = ii2.obj.selected;
                             ii.obj = ii2.obj;
                             ii2.obj = null;
                             break;
@@ -5872,12 +6002,11 @@ var fgui;
                         ii.obj = this.$pool.get(url);
                         this.addChildAt(ii.obj, insertIndex);
                     }
-                    else {
+                    else
                         insertIndex = this.setChildIndexBefore(ii.obj, insertIndex);
-                    }
                     insertIndex++;
                     if (ii.obj instanceof fgui.GButton)
-                        ii.obj.selected = false;
+                        ii.obj.selected = ii.selected;
                     needRender = true;
                 }
                 else {
@@ -5899,7 +6028,7 @@ var fgui;
                     ii.height = Math.ceil(ii.obj.height);
                 }
             }
-            //arrange items
+            //layout
             var borderX = (startIndex / pageSize) * viewWidth;
             var xx = borderX;
             var yy = 0;
@@ -5908,7 +6037,7 @@ var fgui;
                 if (i >= this.$realNumItems)
                     continue;
                 ii = this.$virtualItems[i];
-                if (ii.updateFlag == GList.itemInfoReuseFlag)
+                if (ii.updateFlag == this.$itemInfoVer)
                     ii.obj.setXY(xx, yy);
                 if (ii.height > lineHeight)
                     lineHeight = ii.height;
@@ -5925,13 +6054,55 @@ var fgui;
                 else
                     xx += ii.width + this.$columnGap;
             }
-            //release unused items
+            //release items not used
             for (i = reuseIndex; i < virtualItemCount; i++) {
                 ii = this.$virtualItems[i];
-                if (ii.updateFlag != GList.itemInfoReuseFlag && ii.obj != null) {
+                if (ii.updateFlag != this.$itemInfoVer && ii.obj != null) {
+                    if (ii.obj instanceof fgui.GButton)
+                        ii.selected = ii.obj.selected;
                     this.removeChildToPool(ii.obj);
                     ii.obj = null;
                 }
+            }
+        };
+        GList.prototype.handleArchOrder1 = function () {
+            if (this.$childrenRenderOrder == 2 /* Arch */) {
+                var mid = this.$scrollPane.posY + this.viewHeight / 2;
+                var minDist = Number.POSITIVE_INFINITY;
+                var dist = 0;
+                var apexIndex = 0;
+                var cnt = this.numChildren;
+                for (var i = 0; i < cnt; i++) {
+                    var obj = this.getChildAt(i);
+                    if (!this.foldInvisibleItems || obj.visible) {
+                        dist = Math.abs(mid - obj.y - obj.height / 2);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            apexIndex = i;
+                        }
+                    }
+                }
+                this.apexIndex = apexIndex;
+            }
+        };
+        GList.prototype.handleArchOrder2 = function () {
+            if (this.childrenRenderOrder == 2 /* Arch */) {
+                var mid = this.$scrollPane.posX + this.viewWidth / 2;
+                var minDist = Number.POSITIVE_INFINITY;
+                var dist = 0;
+                var apexIndex = 0;
+                var cnt = this.numChildren;
+                for (var i = 0; i < cnt; i++) {
+                    var obj = this.getChildAt(i);
+                    if (!this.foldInvisibleItems || obj.visible) {
+                        dist = Math.abs(mid - obj.x - obj.width / 2);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            apexIndex = i;
+                        }
+                    }
+                }
+                this.apexIndex = apexIndex;
             }
         };
         GList.prototype.handleAlign = function (contentWidth, contentHeight) {
@@ -5959,6 +6130,7 @@ var fgui;
                 }
             }
         };
+        /**@override */
         GList.prototype.updateBounds = function () {
             if (this.$virtual)
                 return;
@@ -5977,7 +6149,7 @@ var fgui;
             var viewHeight = this.viewHeight;
             var lineSize = 0;
             var lineStart = 0;
-            var ratio = 0;
+            var ratio;
             if (this.$layout == 0 /* SingleColumn */) {
                 for (i = 0; i < cnt; i++) {
                     child = this.getChildAt(i);
@@ -6032,9 +6204,8 @@ var fgui;
                                     child.setSize(child.sourceWidth + Math.round(child.sourceWidth * ratio), child.height, true);
                                     curX += Math.ceil(child.width) + this.$columnGap;
                                 }
-                                else {
+                                else
                                     child.setSize(viewWidth - curX, child.height, true);
-                                }
                                 if (child.height > maxHeight)
                                     maxHeight = child.height;
                             }
@@ -6096,9 +6267,8 @@ var fgui;
                                     child.setSize(child.width, child.sourceHeight + Math.round(child.sourceHeight * ratio), true);
                                     curY += Math.ceil(child.height) + this.$lineGap;
                                 }
-                                else {
+                                else
                                     child.setSize(child.width, viewHeight - curY, true);
-                                }
                                 if (child.width > maxWidth)
                                     maxWidth = child.width;
                             }
@@ -6162,9 +6332,8 @@ var fgui;
                                     child.setSize(child.sourceWidth + Math.round(child.sourceWidth * ratio), this.$lineCount > 0 ? eachHeight : child.height, true);
                                     curX += Math.ceil(child.width) + this.$columnGap;
                                 }
-                                else {
+                                else
                                     child.setSize(viewWidth - curX, this.$lineCount > 0 ? eachHeight : child.height, true);
-                                }
                                 if (child.height > maxHeight)
                                     maxHeight = child.height;
                             }
@@ -6278,7 +6447,15 @@ var fgui;
                     vtScrollBarRes = arr[0];
                     hzScrollBarRes = arr[1];
                 }
-                this.setupScroll(scrollBarMargin, scroll_2, scrollBarDisplay, scrollBarFlags, vtScrollBarRes, hzScrollBarRes);
+                var headerRes = void 0;
+                var footerRes = void 0;
+                str = xml.attributes.ptrRes;
+                if (str) {
+                    arr = str.split(",");
+                    headerRes = arr[0];
+                    footerRes = arr[1];
+                }
+                this.setupScroll(scrollBarMargin, scroll_2, scrollBarDisplay, scrollBarFlags, vtScrollBarRes, hzScrollBarRes, headerRes, footerRes);
             }
             else
                 this.setupOverflow(overflow);
@@ -6339,6 +6516,9 @@ var fgui;
                     str = cxml.attributes.name;
                     if (str)
                         obj.name = str;
+                    str = cxml.attributes.selectedIcon;
+                    if (str && (obj instanceof fgui.GButton))
+                        obj.selectedIcon = str;
                 }
             }, this);
         };
@@ -6349,8 +6529,7 @@ var fgui;
             if (str)
                 this.$selectionController = this.parent.getController(str);
         };
-        GList.itemInfoReuseFlag = 0; //indicate whether the item is reused in the current handling
-        GList.scrollEnterCounter = 0; //there will be concurrent issue of HandleScroll method, this flag is for the extremely deadlock situation
+        GList.$lastPosHelper = 0;
         return GList;
     }(fgui.GComponent));
     fgui.GList = GList;
@@ -6788,6 +6967,12 @@ var fgui;
                             else
                                 sy = sx;
                         }
+                        else if (this.$fill == 5 /* ScaleNoBorder */) {
+                            if (sx > sy)
+                                sy = sx;
+                            else
+                                sx = sy;
+                        }
                         this.$contentWidth = this.$contentSourceWidth * sx;
                         this.$contentHeight = this.$contentSourceHeight * sy;
                     }
@@ -7042,8 +7227,11 @@ var fgui;
         });
         GProgressBar.prototype.tweenValue = function (value, duration) {
             if (this.$value != value) {
-                if (this.$tweener)
+                if (this.$tweener) {
                     this.$tweener.paused = true;
+                    this.$tweener.removeAllEventListeners();
+                    createjs.Tween.removeTweens(this);
+                }
                 this.$tweenValue = this.$value;
                 this.$value = value;
                 this.$tweener = createjs.Tween.get(this, { onChange: fgui.utils.Binder.create(this.onUpdateTween, this) })
@@ -7056,18 +7244,18 @@ var fgui;
         GProgressBar.prototype.onUpdateTween = function () {
             this.update(this.$tweenValue);
         };
-        GProgressBar.prototype.update = function (newValue) {
-            var percent = Math.min(newValue / this.$max, 1);
+        GProgressBar.prototype.update = function (val) {
+            var percent = this.$max != 0 ? Math.min(val / this.$max, 1) : 0;
             if (this.$titleObject) {
                 switch (this.$titleType) {
                     case 0 /* Percent */:
                         this.$titleObject.text = Math.round(percent * 100) + "%";
                         break;
                     case 1 /* ValueAndMax */:
-                        this.$titleObject.text = Math.round(newValue) + "/" + Math.round(this.$max);
+                        this.$titleObject.text = Math.round(val) + "/" + Math.round(this.$max);
                         break;
                     case 2 /* Value */:
-                        this.$titleObject.text = "" + Math.round(newValue);
+                        this.$titleObject.text = "" + Math.round(val);
                         break;
                     case 3 /* Max */:
                         this.$titleObject.text = "" + Math.round(this.$max);
@@ -8036,15 +8224,15 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var GRootPointerStatus = (function () {
-        function GRootPointerStatus() {
+    var GRootMouseStatus = (function () {
+        function GRootMouseStatus() {
             this.touchDown = false;
             this.mouseX = 0;
             this.mouseY = 0;
         }
-        return GRootPointerStatus;
+        return GRootMouseStatus;
     }());
-    fgui.GRootPointerStatus = GRootPointerStatus;
+    fgui.GRootMouseStatus = GRootMouseStatus;
     var GRoot = (function (_super) {
         __extends(GRoot, _super);
         function GRoot() {
@@ -8055,6 +8243,7 @@ var fgui;
             _this.$popupStack = [];
             _this.$justClosedPopups = [];
             _this.$uid = GRoot.uniqueID++;
+            fgui.utils.DOMEventManager.inst.on("__mouseWheel" /* MOUSE_WHEEL */, _this.dispatchMouseWheel, _this);
             return _this;
         }
         Object.defineProperty(GRoot, "inst", {
@@ -8069,35 +8258,16 @@ var fgui;
             enumerable: true,
             configurable: true
         });
-        Object.defineProperty(GRoot, "statusData", {
-            /**
-             * @deprecated will be removed later, please use pointerStatusData instead
-             */
-            get: function () {
-                return GRoot.$retStatus;
-            },
-            enumerable: true,
-            configurable: true
-        });
-        Object.defineProperty(GRoot, "pointerStatusData", {
+        Object.defineProperty(GRoot, "globalMouseStatus", {
             /**
              * the current mouse/pointer data
              */
             get: function () {
-                return GRoot.$retStatus;
+                return GRoot.$gmStatus;
             },
             enumerable: true,
             configurable: true
         });
-        /**
-         * get the objects which are placed underneath the given stage coordinate
-         * @param globalX the stage X
-         * @param globalY the stage Y
-         */
-        GRoot.prototype.getObjectUnderPoint = function (globalX, globalY) {
-            var ret = this.$uiStage.applicationContext.renderer.plugins.interaction.hitTest(GRoot.sHelperPoint, this.nativeStage);
-            return fgui.GObject.castFromNativeObject(ret);
-        };
         /**
          * the main entry to lauch the UI root, e.g.: GRoot.inst.attachTo(app, options)
          * @param app your PIXI.Application instance to be used in this GRoot instance
@@ -8170,6 +8340,39 @@ var fgui;
             enumerable: true,
             configurable: true
         });
+        Object.defineProperty(GRoot.prototype, "orientation", {
+            get: function () {
+                return this.$uiStage.orientation;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(GRoot.prototype, "stageWrapper", {
+            get: function () {
+                return this.$uiStage;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        GRoot.prototype.dispatchMouseWheel = function (evt) {
+            var childUnderMouse = this.getObjectUnderPoint(GRoot.globalMouseStatus.mouseX, GRoot.globalMouseStatus.mouseY);
+            if (childUnderMouse != null) {
+                while (childUnderMouse.parent && childUnderMouse.parent != this) {
+                    childUnderMouse.emit("__mouseWheel" /* MOUSE_WHEEL */, evt);
+                    childUnderMouse = childUnderMouse.parent;
+                }
+            }
+        };
+        /**
+         * get the objects which are placed underneath the given stage coordinate
+         * @param globalX the stage X
+         * @param globalY the stage Y
+         */
+        GRoot.prototype.getObjectUnderPoint = function (globalX, globalY) {
+            GRoot.sHelperPoint.set(globalX, globalY);
+            var ret = this.$uiStage.applicationContext.renderer.plugins.interaction.hitTest(GRoot.sHelperPoint, this.nativeStage);
+            return fgui.GObject.castFromNativeObject(ret);
+        };
         GRoot.prototype.showWindow = function (win) {
             this.addChild(win);
             win.requestFocus();
@@ -8282,7 +8485,7 @@ var fgui;
                 sizeH = target.height;
             }
             else
-                pos = this.globalToLocal(GRoot.$retStatus.mouseX, GRoot.$retStatus.mouseY);
+                pos = this.globalToLocal(GRoot.$gmStatus.mouseX, GRoot.$gmStatus.mouseY);
             var xx, yy;
             xx = pos.x;
             if (xx + popup.width > this.width)
@@ -8356,8 +8559,8 @@ var fgui;
             var xx = 0;
             var yy = 0;
             if (position == null) {
-                xx = GRoot.$retStatus.mouseX + 10;
-                yy = GRoot.$retStatus.mouseY + 20;
+                xx = GRoot.$gmStatus.mouseX + 10;
+                yy = GRoot.$gmStatus.mouseY + 20;
             }
             else {
                 xx = position.x;
@@ -8427,9 +8630,9 @@ var fgui;
                 this.removeChild(this.$modalLayer);
         };
         GRoot.prototype.$stageDown = function (evt) {
-            GRoot.$retStatus.mouseX = evt.data.global.x;
-            GRoot.$retStatus.mouseY = evt.data.global.y;
-            GRoot.$retStatus.touchDown = true;
+            GRoot.$gmStatus.mouseX = evt.data.global.x;
+            GRoot.$gmStatus.mouseY = evt.data.global.y;
+            GRoot.$gmStatus.touchDown = true;
             //check focus
             var mc = evt.target;
             while (mc && mc != this.nativeStage) {
@@ -8479,18 +8682,18 @@ var fgui;
             }
         };
         GRoot.prototype.$stageMove = function (evt) {
-            GRoot.$retStatus.mouseX = evt.data.global.x;
-            GRoot.$retStatus.mouseY = evt.data.global.y;
+            GRoot.$gmStatus.mouseX = evt.data.global.x;
+            GRoot.$gmStatus.mouseY = evt.data.global.y;
         };
         GRoot.prototype.$stageUp = function (evt) {
-            GRoot.$retStatus.touchDown = false;
+            GRoot.$gmStatus.touchDown = false;
             this.$checkingPopups = false;
         };
         GRoot.prototype.$winResize = function (stage) {
             this.setSize(stage.stageWidth, stage.stageHeight);
         };
         GRoot.uniqueID = 0;
-        GRoot.$retStatus = new GRootPointerStatus();
+        GRoot.$gmStatus = new GRootMouseStatus();
         return GRoot;
     }(fgui.GComponent));
     fgui.GRoot = GRoot;
@@ -8526,6 +8729,9 @@ var fgui;
             configurable: true
         });
         Object.defineProperty(GScrollBar.prototype, "scrollPerc", {
+            get: function () {
+                return this.$scrollPerc;
+            },
             set: function (val) {
                 this.$scrollPerc = val;
                 if (this.$vertical)
@@ -9006,6 +9212,7 @@ var fgui;
         function GTimer() {
             this.$enumIdx = 0;
             this.$enumCount = 0;
+            this.$curTime = Date.now();
             this.$items = [];
             this.$itemPool = [];
         }
@@ -9024,6 +9231,7 @@ var fgui;
             }
             return null;
         };
+        //repeat <= 0 means loop
         GTimer.prototype.add = function (delayInMs, repeat, callback, thisObj, callbackParam) {
             var item = this.findItem(callback, thisObj);
             if (!item) {
@@ -9037,6 +9245,9 @@ var fgui;
             item.repeat = repeat;
             item.param = callbackParam;
             item.end = false;
+        };
+        GTimer.prototype.addLoop = function (delayInMs, callback, thisObj, callbackParam) {
+            this.add(delayInMs, 0, callback, thisObj, callbackParam);
         };
         GTimer.prototype.callLater = function (callback, thisObj, callbackParam) {
             this.add(1, 1, callback, thisObj, callbackParam);
@@ -9061,13 +9272,28 @@ var fgui;
                 this.$itemPool.push(item);
             }
         };
+        Object.defineProperty(GTimer.prototype, "ticker", {
+            get: function () {
+                return this.$ticker;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(GTimer.prototype, "curTime", {
+            get: function () {
+                return this.$curTime;
+            },
+            enumerable: true,
+            configurable: true
+        });
         GTimer.prototype.advance = function () {
             this.$enumIdx = 0;
             this.$enumCount = this.$items.length;
             while (this.$enumIdx < this.$enumCount) {
                 var item = this.$items[this.$enumIdx];
                 this.$enumIdx++;
-                var ms = this.$ticker.elapsedMS;
+                var ms = this.$ticker.deltaTime / PIXI.settings.TARGET_FPMS;
+                this.$curTime += ms;
                 if (item.advance(ms)) {
                     if (item.end) {
                         this.$enumIdx--;
@@ -9089,7 +9315,7 @@ var fgui;
             }
         };
         GTimer.prototype.tickTween = function () {
-            createjs.Tween.tick(this.$ticker.elapsedMS, !this.$ticker.started);
+            createjs.Tween.tick(this.$ticker.deltaTime / PIXI.settings.TARGET_FPMS, !this.$ticker.started);
         };
         GTimer.prototype.setTicker = function (ticker) {
             if (this.$ticker) {
@@ -9112,9 +9338,9 @@ var fgui;
             this.counter = 0;
             this.repeat = 0;
         }
-        TimerItem.prototype.advance = function (elapsed) {
-            if (elapsed === void 0) { elapsed = 0; }
-            this.counter += elapsed;
+        TimerItem.prototype.advance = function (delta) {
+            if (delta === void 0) { delta = 0; }
+            this.counter += delta;
             if (this.counter >= this.delay) {
                 this.counter -= this.delay;
                 if (this.counter > this.delay)
@@ -9442,7 +9668,7 @@ var fgui;
                 ox = this.$owner.x - ox;
                 oy = this.$owner.y - oy;
                 this.$owner.updateGearFromRelations(1 /* XY */, ox, oy);
-                if (this.$owner.parent != null) {
+                if (this.$owner.parent != null && this.$owner.parent.$transitions.length > 0) {
                     this.$owner.parent.$transitions.forEach(function (t) {
                         t.updateFromRelations(_this.$owner.id, ox, oy);
                     }, this);
@@ -9697,7 +9923,7 @@ var fgui;
                 ox = this.$owner.x - ox;
                 oy = this.$owner.y - oy;
                 this.$owner.updateGearFromRelations(1 /* XY */, ox, oy);
-                if (this.$owner.parent != null) {
+                if (this.$owner.parent != null && this.$owner.parent.$transitions.length > 0) {
                     this.$owner.parent.$transitions.forEach(function (t) {
                         t.updateFromRelations(_this.$owner.id, ox, oy);
                     }, this);
@@ -9723,7 +9949,7 @@ var fgui;
                 ox = this.$owner.x - ox;
                 oy = this.$owner.y - oy;
                 this.$owner.updateGearFromRelations(1 /* XY */, ox, oy);
-                if (this.$owner.parent != null) {
+                if (this.$owner.parent != null && this.$owner.parent.$transitions.length > 0) {
                     this.$owner.parent.$transitions.forEach(function (t) {
                         t.updateFromRelations(_this.$owner.id, ox, oy);
                     }, this);
@@ -9934,21 +10160,10 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    /**@final */
     var ScrollPane = (function (_super) {
         __extends(ScrollPane, _super);
-        function ScrollPane(owner, scrollType, scrollBarMargin, scrollBarDisplay, flags, vtScrollBarRes, hzScrollBarRes) {
+        function ScrollPane(owner, scrollType, scrollBarMargin, scrollBarDisplay, flags, vtScrollBarRes, hzScrollBarRes, headerRes, footerRes) {
             var _this = _super.call(this) || this;
-            _this.$viewWidth = 0;
-            _this.$viewHeight = 0;
-            _this.$contentWidth = 0;
-            _this.$contentHeight = 0;
-            _this.$scrollType = 0;
-            _this.$scrollSpeed = 0;
-            _this.$onStage = false;
-            if (ScrollPane.$easeTypeFunc == null)
-                ScrollPane.$easeTypeFunc = fgui.ParseEaseType("cubeOut");
-            _this.$throwTween = new ThrowTween();
             _this.$owner = owner;
             _this.$maskContainer = new fgui.UIContainer(null);
             _this.$owner.$rootContainer.addChild(_this.$maskContainer);
@@ -9956,12 +10171,11 @@ var fgui;
             _this.$container.x = 0;
             _this.$container.y = 0;
             _this.$maskContainer.addChild(_this.$container);
-            _this.$scrollType = scrollType;
             _this.$scrollBarMargin = scrollBarMargin;
-            _this.$bouncebackEffect = fgui.UIConfig.defaultScrollBounceEffect;
-            _this.$touchEffect = fgui.UIConfig.defaultScrollTouchEffect;
+            _this.$scrollType = scrollType;
             _this.$scrollSpeed = fgui.UIConfig.defaultScrollSpeed;
-            //this.$mouseWheelSpeed = this.$scrollSpeed * 2;
+            _this.$mouseWheelSpeed = _this.$scrollSpeed * 2;
+            _this.$decelerationRate = fgui.UIConfig.defaultScrollDecelerationRate;
             _this.$displayOnLeft = (flags & 1 /* DisplayOnLeft */) != 0;
             _this.$snapToItem = (flags & 2 /* SnapToItem */) != 0;
             _this.$displayOnDemand = (flags & 4 /* DisplayOnDemand */) != 0;
@@ -9981,31 +10195,42 @@ var fgui;
             _this.$inertiaDisabled = (flags & 256 /* DisableInertia */) != 0;
             if ((flags & 512 /* DisableScissorRect */) == 0)
                 _this.$maskContainer.scrollRect = new PIXI.Rectangle();
-            _this.$xPerc = 0;
-            _this.$yPerc = 0;
+            _this.$scrollBarVisible = true;
+            _this.$mouseWheelEnabled = true;
             _this.$xPos = 0;
             _this.$yPos = 0;
-            _this.$xOverlap = 0;
-            _this.$yOverlap = 0;
             _this.$aniFlag = 0;
-            _this.$scrollBarVisible = true;
-            //this.$mouseWheelEnabled = false;
-            _this.$holdAreaPoint = new PIXI.Point();
+            _this.$footerLockedSize = 0;
+            _this.$headerLockedSize = 0;
             if (scrollBarDisplay == 0 /* Default */)
                 scrollBarDisplay = fgui.UIConfig.defaultScrollBarDisplay;
+            _this.$viewSize = new PIXI.Point();
+            _this.$contentSize = new PIXI.Point();
+            _this.$pageSize = new PIXI.Point(1, 1);
+            _this.$overlapSize = new PIXI.Point();
+            _this.$tweenTime = new PIXI.Point();
+            _this.$tweenStart = new PIXI.Point();
+            _this.$tweenDuration = new PIXI.Point();
+            _this.$tweenChange = new PIXI.Point();
+            _this.$velocity = new PIXI.Point();
+            _this.$containerPos = new PIXI.Point();
+            _this.$beginTouchPos = new PIXI.Point();
+            _this.$lastTouchPos = new PIXI.Point();
+            _this.$lastTouchGlobalPos = new PIXI.Point();
+            var res;
             if (scrollBarDisplay != 3 /* Hidden */) {
                 if (_this.$scrollType == 2 /* Both */ || _this.$scrollType == 1 /* Vertical */) {
-                    var res = vtScrollBarRes ? vtScrollBarRes : fgui.UIConfig.verticalScrollBar;
-                    if (res) {
-                        _this.$vtScrollBar = fgui.UIPackage.createObjectFromURL(res);
+                    var res_1 = vtScrollBarRes ? vtScrollBarRes : fgui.UIConfig.verticalScrollBar;
+                    if (res_1) {
+                        _this.$vtScrollBar = fgui.UIPackage.createObjectFromURL(res_1);
                         if (!_this.$vtScrollBar)
-                            throw new Error("Cannot create scrollbar from " + res);
+                            throw new Error("Cannot create scrollbar from " + res_1);
                         _this.$vtScrollBar.setScrollPane(_this, true);
                         _this.$owner.$rootContainer.addChild(_this.$vtScrollBar.displayObject);
                     }
                 }
                 if (_this.$scrollType == 2 /* Both */ || _this.$scrollType == 0 /* Horizontal */) {
-                    var res = hzScrollBarRes ? hzScrollBarRes : fgui.UIConfig.horizontalScrollBar;
+                    res = hzScrollBarRes ? hzScrollBarRes : fgui.UIConfig.horizontalScrollBar;
                     if (res) {
                         _this.$hzScrollBar = fgui.UIPackage.createObjectFromURL(res);
                         if (!_this.$hzScrollBar)
@@ -10023,25 +10248,78 @@ var fgui;
                         _this.$hzScrollBar.displayObject.visible = false;
                 }
             }
-            _this.$contentWidth = 0;
-            _this.$contentHeight = 0;
+            else
+                _this.$mouseWheelEnabled = false;
+            if (headerRes) {
+                _this.$header = fgui.UIPackage.createObjectFromURL(headerRes);
+                if (_this.$header == null)
+                    throw new Error("Cannot create scrollPane.header from " + res);
+            }
+            if (footerRes) {
+                _this.$footer = fgui.UIPackage.createObjectFromURL(footerRes);
+                if (_this.$footer == null)
+                    throw new Error("Cannot create scrollPane.footer from " + res);
+            }
+            if (_this.$header != null || _this.$footer != null)
+                _this.$refreshBarAxis = (_this.$scrollType == 2 /* Both */ || _this.$scrollType == 1 /* Vertical */) ? "y" : "x";
             _this.setSize(owner.width, owner.height);
             _this.$owner.on(fgui.InteractiveEvents.Over, _this.$rollOver, _this);
             _this.$owner.on(fgui.InteractiveEvents.Out, _this.$rollOut, _this);
             _this.$owner.on(fgui.InteractiveEvents.Down, _this.$mouseDown, _this);
-            _this.$owner.$rootContainer.on("added", _this.$ownerAdded, _this);
-            _this.$owner.$rootContainer.on("removed", _this.$ownerRemoved, _this);
+            _this.$owner.on("__mouseWheel" /* MOUSE_WHEEL */, _this.$mouseWheel, _this);
             return _this;
         }
-        ScrollPane.prototype.$ownerAdded = function (e) {
-            this.$onStage = true;
-        };
-        ScrollPane.prototype.$ownerRemoved = function (e) {
-            this.$onStage = false;
+        ScrollPane.prototype.dispose = function () {
+            if (this.$tweening != 0)
+                fgui.GTimer.inst.remove(this.tweenUpdate, this);
+            this.$pageController = null;
+            if (this.$hzScrollBar != null)
+                this.$hzScrollBar.dispose();
+            if (this.$vtScrollBar != null)
+                this.$vtScrollBar.dispose();
+            if (this.$header != null)
+                this.$header.dispose();
+            if (this.$footer != null)
+                this.$footer.dispose();
+            fgui.GRoot.inst.nativeStage.off(fgui.InteractiveEvents.Move, this.$mouseMove, this);
+            fgui.GRoot.inst.nativeStage.off(fgui.InteractiveEvents.Up, this.$mouseUp, this);
+            fgui.GRoot.inst.nativeStage.off(fgui.InteractiveEvents.Click, this.$click, this);
+            this.$owner.off(fgui.InteractiveEvents.Over, this.$rollOver, this);
+            this.$owner.off(fgui.InteractiveEvents.Out, this.$rollOut, this);
+            this.$owner.off(fgui.InteractiveEvents.Down, this.$mouseDown, this);
+            this.$owner.off("__mouseWheel" /* MOUSE_WHEEL */, this.$mouseWheel, this);
         };
         Object.defineProperty(ScrollPane.prototype, "owner", {
             get: function () {
                 return this.$owner;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(ScrollPane.prototype, "horzScrollBar", {
+            get: function () {
+                return this.$hzScrollBar;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(ScrollPane.prototype, "vertScrollBar", {
+            get: function () {
+                return this.$vtScrollBar;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(ScrollPane.prototype, "header", {
+            get: function () {
+                return this.$header;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(ScrollPane.prototype, "footer", {
+            get: function () {
+                return this.$footer;
             },
             enumerable: true,
             configurable: true
@@ -10071,10 +10349,10 @@ var fgui;
                 return this.$scrollSpeed;
             },
             set: function (val) {
-                this.$scrollSpeed = this.scrollSpeed;
+                this.$scrollSpeed = val;
                 if (this.$scrollSpeed == 0)
                     this.$scrollSpeed = fgui.UIConfig.defaultScrollSpeed;
-                //this.$mouseWheelSpeed = this.$scrollSpeed * 2;
+                this.$mouseWheelSpeed = this.$scrollSpeed * 2;
             },
             enumerable: true,
             configurable: true
@@ -10089,9 +10367,29 @@ var fgui;
             enumerable: true,
             configurable: true
         });
+        Object.defineProperty(ScrollPane.prototype, "mouseWheelEnabled", {
+            get: function () {
+                return this.$mouseWheelEnabled;
+            },
+            set: function (value) {
+                this.$mouseWheelEnabled = value;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(ScrollPane.prototype, "decelerationRate", {
+            get: function () {
+                return this.$decelerationRate;
+            },
+            set: function (value) {
+                this.$decelerationRate = value;
+            },
+            enumerable: true,
+            configurable: true
+        });
         Object.defineProperty(ScrollPane.prototype, "percX", {
             get: function () {
-                return this.$xPerc;
+                return this.$overlapSize.x == 0 ? 0 : this.$xPos / this.$overlapSize.x;
             },
             set: function (value) {
                 this.setPercX(value, false);
@@ -10102,16 +10400,11 @@ var fgui;
         ScrollPane.prototype.setPercX = function (value, ani) {
             if (ani === void 0) { ani = false; }
             this.$owner.ensureBoundsCorrect();
-            value = fgui.utils.NumberUtil.clamp01(value);
-            if (value != this.$xPerc) {
-                this.$xPerc = value;
-                this.$xPos = this.$xPerc * this.$xOverlap;
-                this.posChanged(ani);
-            }
+            this.setPosX(this.$overlapSize.x * fgui.utils.NumberUtil.clamp01(value), ani);
         };
         Object.defineProperty(ScrollPane.prototype, "percY", {
             get: function () {
-                return this.$yPerc;
+                return this.$overlapSize.y == 0 ? 0 : this.$yPos / this.$overlapSize.y;
             },
             set: function (value) {
                 this.setPercY(value, false);
@@ -10122,12 +10415,7 @@ var fgui;
         ScrollPane.prototype.setPercY = function (value, ani) {
             if (ani === void 0) { ani = false; }
             this.$owner.ensureBoundsCorrect();
-            value = fgui.utils.NumberUtil.clamp01(value);
-            if (value != this.$yPerc) {
-                this.$yPerc = value;
-                this.$yPos = this.$yPerc * this.$yOverlap;
-                this.posChanged(ani);
-            }
+            this.setPosY(this.$overlapSize.y * fgui.utils.NumberUtil.clamp01(value), ani);
         };
         Object.defineProperty(ScrollPane.prototype, "posX", {
             get: function () {
@@ -10142,10 +10430,11 @@ var fgui;
         ScrollPane.prototype.setPosX = function (value, ani) {
             if (ani === void 0) { ani = false; }
             this.$owner.ensureBoundsCorrect();
-            value = fgui.utils.NumberUtil.clamp(value, 0, this.$xOverlap);
+            if (this.$loop == 1)
+                value = this.loopCheckingNewPos(value, "x");
+            value = fgui.utils.NumberUtil.clamp(value, 0, this.$overlapSize.x);
             if (value != this.$xPos) {
                 this.$xPos = value;
-                this.$xPerc = this.$xOverlap == 0 ? 0 : this.$xPos / this.$xOverlap;
                 this.posChanged(ani);
             }
         };
@@ -10162,80 +10451,31 @@ var fgui;
         ScrollPane.prototype.setPosY = function (value, ani) {
             if (ani === void 0) { ani = false; }
             this.$owner.ensureBoundsCorrect();
-            value = fgui.utils.NumberUtil.clamp(value, 0, this.$yOverlap);
+            if (this.$loop == 1)
+                value = this.loopCheckingNewPos(value, "y");
+            value = fgui.utils.NumberUtil.clamp(value, 0, this.$overlapSize.y);
             if (value != this.$yPos) {
                 this.$yPos = value;
-                this.$yPerc = this.$yOverlap == 0 ? 0 : this.$yPos / this.$yOverlap;
                 this.posChanged(ani);
             }
         };
-        Object.defineProperty(ScrollPane.prototype, "isBottomMost", {
-            get: function () {
-                return this.$yPerc == 1 || this.$yOverlap == 0;
-            },
-            enumerable: true,
-            configurable: true
-        });
-        Object.defineProperty(ScrollPane.prototype, "isRightMost", {
-            get: function () {
-                return this.$xPerc == 1 || this.$xOverlap == 0;
-            },
-            enumerable: true,
-            configurable: true
-        });
-        Object.defineProperty(ScrollPane.prototype, "currentPageX", {
-            get: function () {
-                return this.$pageMode ? Math.floor(this.posX / this.$pageSizeH) : 0;
-            },
-            set: function (value) {
-                if (this.$pageMode && this.$xOverlap > 0)
-                    this.setPosX(value * this.$pageSizeH, false);
-            },
-            enumerable: true,
-            configurable: true
-        });
-        Object.defineProperty(ScrollPane.prototype, "currentPageY", {
-            get: function () {
-                return this.$pageMode ? Math.floor(this.posY / this.$pageSizeV) : 0;
-            },
-            set: function (value) {
-                if (this.$pageMode && this.$yOverlap > 0)
-                    this.setPosY(value * this.$pageSizeV, false);
-            },
-            enumerable: true,
-            configurable: true
-        });
-        Object.defineProperty(ScrollPane.prototype, "scrollingPosX", {
-            get: function () {
-                return fgui.utils.NumberUtil.clamp(-this.$container.x, 0, this.$xOverlap);
-            },
-            enumerable: true,
-            configurable: true
-        });
-        Object.defineProperty(ScrollPane.prototype, "scrollingPosY", {
-            get: function () {
-                return fgui.utils.NumberUtil.clamp(-this.$container.y, 0, this.$yOverlap);
-            },
-            enumerable: true,
-            configurable: true
-        });
         Object.defineProperty(ScrollPane.prototype, "contentWidth", {
             get: function () {
-                return this.$contentWidth;
+                return this.$contentSize.x;
             },
             enumerable: true,
             configurable: true
         });
         Object.defineProperty(ScrollPane.prototype, "contentHeight", {
             get: function () {
-                return this.$contentHeight;
+                return this.$contentSize.y;
             },
             enumerable: true,
             configurable: true
         });
         Object.defineProperty(ScrollPane.prototype, "viewWidth", {
             get: function () {
-                return this.$viewWidth;
+                return this.$viewSize.x;
             },
             set: function (value) {
                 value = value + this.$owner.margin.left + this.$owner.margin.right;
@@ -10248,7 +10488,7 @@ var fgui;
         });
         Object.defineProperty(ScrollPane.prototype, "viewHeight", {
             get: function () {
-                return this.$viewHeight;
+                return this.$viewSize.y;
             },
             set: function (value) {
                 value = value + this.$owner.margin.top + this.$owner.margin.bottom;
@@ -10259,12 +10499,76 @@ var fgui;
             enumerable: true,
             configurable: true
         });
-        ScrollPane.prototype.getDeltaX = function (move) {
-            return move / (this.$contentWidth - this.$viewWidth);
-        };
-        ScrollPane.prototype.getDeltaY = function (move) {
-            return move / (this.$contentHeight - this.$viewHeight);
-        };
+        Object.defineProperty(ScrollPane.prototype, "currentPageX", {
+            get: function () {
+                if (!this.$pageMode)
+                    return 0;
+                var page = Math.floor(this.$xPos / this.$pageSize.x);
+                if (this.$xPos - page * this.$pageSize.x > this.$pageSize.x * 0.5)
+                    page++;
+                return page;
+            },
+            set: function (value) {
+                if (this.$pageMode && this.$overlapSize.x > 0)
+                    this.setPosX(value * this.$pageSize.x, false);
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(ScrollPane.prototype, "currentPageY", {
+            get: function () {
+                if (!this.$pageMode)
+                    return 0;
+                var page = Math.floor(this.$yPos / this.$pageSize.y);
+                if (this.$yPos - page * this.$pageSize.y > this.$pageSize.y * 0.5)
+                    page++;
+                return page;
+            },
+            set: function (value) {
+                if (this.$pageMode && this.$overlapSize.y > 0)
+                    this.setPosY(value * this.$pageSize.y, false);
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(ScrollPane.prototype, "isBottomMost", {
+            get: function () {
+                return this.$yPos == this.$overlapSize.y || this.$overlapSize.y == 0;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(ScrollPane.prototype, "isRightMost", {
+            get: function () {
+                return this.$xPos == this.$overlapSize.x || this.$overlapSize.x == 0;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(ScrollPane.prototype, "pageController", {
+            get: function () {
+                return this.$pageController;
+            },
+            set: function (value) {
+                this.$pageController = value;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(ScrollPane.prototype, "scrollingPosX", {
+            get: function () {
+                return fgui.utils.NumberUtil.clamp(-this.$container.x, 0, this.$overlapSize.x);
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(ScrollPane.prototype, "scrollingPosY", {
+            get: function () {
+                return fgui.utils.NumberUtil.clamp(-this.$container.y, 0, this.$overlapSize.y);
+            },
+            enumerable: true,
+            configurable: true
+        });
         ScrollPane.prototype.scrollTop = function (ani) {
             if (ani === void 0) { ani = false; }
             this.setPercY(0, ani);
@@ -10273,29 +10577,42 @@ var fgui;
             if (ani === void 0) { ani = false; }
             this.setPercY(1, ani);
         };
-        ScrollPane.prototype.scrollUp = function (speed, ani) {
-            if (speed === void 0) { speed = 1; }
+        ScrollPane.prototype.scrollUp = function (ratio, ani) {
+            if (ratio === void 0) { ratio = 1; }
             if (ani === void 0) { ani = false; }
-            this.setPercY(this.$yPerc - this.getDeltaY(this.$scrollSpeed * speed), ani);
+            if (this.$pageMode)
+                this.setPosY(this.$yPos - this.$pageSize.y * ratio, ani);
+            else
+                this.setPosY(this.$yPos - this.$scrollSpeed * ratio, ani);
+            ;
         };
-        ScrollPane.prototype.scrollDown = function (speed, ani) {
-            if (speed === void 0) { speed = 1; }
+        ScrollPane.prototype.scrollDown = function (ratio, ani) {
+            if (ratio === void 0) { ratio = 1; }
             if (ani === void 0) { ani = false; }
-            this.setPercY(this.$yPerc + this.getDeltaY(this.$scrollSpeed * speed), ani);
+            if (this.$pageMode)
+                this.setPosY(this.$yPos + this.$pageSize.y * ratio, ani);
+            else
+                this.setPosY(this.$yPos + this.$scrollSpeed * ratio, ani);
         };
-        ScrollPane.prototype.scrollLeft = function (speed, ani) {
-            if (speed === void 0) { speed = 1; }
+        ScrollPane.prototype.scrollLeft = function (ratio, ani) {
+            if (ratio === void 0) { ratio = 1; }
             if (ani === void 0) { ani = false; }
-            this.setPercX(this.$xPerc - this.getDeltaX(this.$scrollSpeed * speed), ani);
+            if (this.$pageMode)
+                this.setPosX(this.$xPos - this.$pageSize.x * ratio, ani);
+            else
+                this.setPosX(this.$xPos - this.$scrollSpeed * ratio, ani);
         };
-        ScrollPane.prototype.scrollRight = function (speed, ani) {
-            if (speed === void 0) { speed = 1; }
+        ScrollPane.prototype.scrollRight = function (ratio, ani) {
+            if (ratio === void 0) { ratio = 1; }
             if (ani === void 0) { ani = false; }
-            this.setPercX(this.$xPerc + this.getDeltaX(this.$scrollSpeed * speed), ani);
+            if (this.$pageMode)
+                this.setPosX(this.$xPos + this.$pageSize.x * ratio, ani);
+            else
+                this.setPosX(this.$xPos + this.$scrollSpeed * ratio, ani);
         };
-        ScrollPane.prototype.scrollToView = function (target, ani, setFirst) {
+        ScrollPane.prototype.scrollToView = function (target, ani, snapToFirst) {
             if (ani === void 0) { ani = false; }
-            if (setFirst === void 0) { setFirst = false; }
+            if (snapToFirst === void 0) { snapToFirst = false; }
             this.$owner.ensureBoundsCorrect();
             if (this.$needRefresh)
                 this.refresh();
@@ -10315,74 +10632,142 @@ var fgui;
             }
             else
                 rect = target;
-            if (this.$yOverlap > 0) {
-                var top_1 = this.posY;
-                var bottom = top_1 + this.$viewHeight;
-                if (setFirst || rect.y < top_1 || rect.height >= this.$viewHeight) {
+            if (this.$overlapSize.y > 0) {
+                var bottom = this.$yPos + this.$viewSize.y;
+                if (snapToFirst || rect.y <= this.$yPos || rect.height >= this.$viewSize.y) {
                     if (this.$pageMode)
-                        this.setPosY(Math.floor(rect.y / this.$pageSizeV) * this.$pageSizeV, ani);
+                        this.setPosY(Math.floor(rect.y / this.$pageSize.y) * this.$pageSize.y, ani);
                     else
                         this.setPosY(rect.y, ani);
                 }
                 else if (rect.y + rect.height > bottom) {
                     if (this.$pageMode)
-                        this.setPosY(Math.floor(rect.y / this.$pageSizeV) * this.$pageSizeV, ani);
-                    else if (rect.height <= this.$viewHeight / 2)
-                        this.setPosY(rect.y + rect.height * 2 - this.$viewHeight, ani);
+                        this.setPosY(Math.floor(rect.y / this.$pageSize.y) * this.$pageSize.y, ani);
+                    else if (rect.height <= this.$viewSize.y / 2)
+                        this.setPosY(rect.y + rect.height * 2 - this.$viewSize.y, ani);
                     else
-                        this.setPosY(rect.y + rect.height - this.$viewHeight, ani);
+                        this.setPosY(rect.y + rect.height - this.$viewSize.y, ani);
                 }
             }
-            if (this.$xOverlap > 0) {
-                var left = this.posX;
-                var right = left + this.$viewWidth;
-                if (setFirst || rect.x < left || rect.width >= this.$viewWidth) {
+            if (this.$overlapSize.x > 0) {
+                var right = this.$xPos + this.$viewSize.x;
+                if (snapToFirst || rect.x <= this.$xPos || rect.width >= this.$viewSize.x) {
                     if (this.$pageMode)
-                        this.setPosX(Math.floor(rect.x / this.$pageSizeH) * this.$pageSizeH, ani);
+                        this.setPosX(Math.floor(rect.x / this.$pageSize.x) * this.$pageSize.x, ani);
                     else
                         this.setPosX(rect.x, ani);
                 }
                 else if (rect.x + rect.width > right) {
                     if (this.$pageMode)
-                        this.setPosX(Math.floor(rect.x / this.$pageSizeH) * this.$pageSizeH, ani);
-                    else if (rect.width <= this.$viewWidth / 2)
-                        this.setPosX(rect.x + rect.width * 2 - this.$viewWidth, ani);
+                        this.setPosX(Math.floor(rect.x / this.$pageSize.x) * this.$pageSize.x, ani);
+                    else if (rect.width <= this.$viewSize.x / 2)
+                        this.setPosX(rect.x + rect.width * 2 - this.$viewSize.x, ani);
                     else
-                        this.setPosX(rect.x + rect.width - this.$viewWidth, ani);
+                        this.setPosX(rect.x + rect.width - this.$viewSize.x, ani);
                 }
             }
             if (!ani && this.$needRefresh)
                 this.refresh();
         };
         ScrollPane.prototype.isChildInView = function (obj) {
-            var dist;
-            if (this.$yOverlap > 0) {
-                dist = obj.y + this.$container.y;
-                if (dist < -obj.height - 20 || dist > this.$viewHeight + 20)
+            if (this.$overlapSize.y > 0) {
+                var dist = obj.y + this.$container.y;
+                if (dist < -obj.height || dist > this.$viewSize.y)
                     return false;
             }
-            if (this.$xOverlap > 0) {
+            if (this.$overlapSize.x > 0) {
                 dist = obj.x + this.$container.x;
-                if (dist < -obj.width - 20 || dist > this.$viewWidth + 20)
+                if (dist < -obj.width || dist > this.$viewSize.x)
                     return false;
             }
             return true;
         };
         ScrollPane.prototype.cancelDragging = function () {
-            var g = fgui.GRoot.inst.nativeStage;
-            g.off(fgui.InteractiveEvents.Move, this.$touchMove, this);
-            g.off(fgui.InteractiveEvents.Up, this.$touchEnd, this);
-            g.off(fgui.InteractiveEvents.Click, this.$touchTap, this);
+            fgui.GRoot.inst.nativeStage.off(fgui.InteractiveEvents.Move, this.$mouseMove, this);
+            fgui.GRoot.inst.nativeStage.off(fgui.InteractiveEvents.Up, this.$mouseUp, this);
+            fgui.GRoot.inst.nativeStage.off(fgui.InteractiveEvents.Click, this.$click, this);
             if (ScrollPane.draggingPane == this)
                 ScrollPane.draggingPane = null;
             ScrollPane.$gestureFlag = 0;
-            this.$isDragged = false;
-            this.$maskContainer.interactiveChildren = true;
+            this.$isDragging = false;
+            this.$maskContainer.interactive = true;
         };
+        Object.defineProperty(ScrollPane.prototype, "isDragging", {
+            get: function () {
+                return this.$isDragging;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        ScrollPane.prototype.lockHeader = function (size) {
+            if (this.$headerLockedSize == size)
+                return;
+            this.$headerLockedSize = size;
+            if (!this.$refreshEventDispatching && this.$container[this.$refreshBarAxis] >= 0) {
+                this.$tweenStart.set(this.$container.x, this.$container.y);
+                this.$tweenChange.set(0, 0);
+                this.$tweenChange[this.$refreshBarAxis] = this.$headerLockedSize - this.$tweenStart[this.$refreshBarAxis];
+                this.$tweenDuration.set(ScrollPane.TWEEN_DEFAULT_DURATION, ScrollPane.TWEEN_DEFAULT_DURATION);
+                this.$tweenTime.set(0, 0);
+                this.$tweening = 2;
+                fgui.GTimer.inst.addLoop(1, this.tweenUpdate, this);
+            }
+        };
+        ScrollPane.prototype.lockFooter = function (size) {
+            if (this.$footerLockedSize == size)
+                return;
+            this.$footerLockedSize = size;
+            if (!this.$refreshEventDispatching && this.$container[this.$refreshBarAxis] <= -this.$overlapSize[this.$refreshBarAxis]) {
+                this.$tweenStart.set(this.$container.x, this.$container.y);
+                this.$tweenChange.set(0, 0);
+                var max = this.$overlapSize[this.$refreshBarAxis];
+                if (max == 0)
+                    max = Math.max(this.$contentSize[this.$refreshBarAxis] + this.$footerLockedSize - this.$viewSize[this.$refreshBarAxis], 0);
+                else
+                    max += this.$footerLockedSize;
+                this.$tweenChange[this.$refreshBarAxis] = -max - this.$tweenStart[this.$refreshBarAxis];
+                this.$tweenDuration.set(ScrollPane.TWEEN_DEFAULT_DURATION, ScrollPane.TWEEN_DEFAULT_DURATION);
+                this.$tweenTime.set(0, 0);
+                this.$tweening = 2;
+                fgui.GTimer.inst.addLoop(1, this.tweenUpdate, this);
+            }
+        };
+        /**
+         * @internal
+         */
         ScrollPane.prototype.onOwnerSizeChanged = function () {
             this.setSize(this.$owner.width, this.$owner.height);
             this.posChanged(false);
         };
+        /**
+         * @internal
+         */
+        ScrollPane.prototype.handleControllerChanged = function (c) {
+            if (this.$pageController == c) {
+                if (this.$scrollType == 0 /* Horizontal */)
+                    this.currentPageX = c.selectedIndex;
+                else
+                    this.currentPageY = c.selectedIndex;
+            }
+        };
+        ScrollPane.prototype.updatePageController = function () {
+            if (this.$pageController != null && !this.$pageController.$updating) {
+                var index = void 0;
+                if (this.$scrollType == 0 /* Horizontal */)
+                    index = this.currentPageX;
+                else
+                    index = this.currentPageY;
+                if (index < this.$pageController.pageCount) {
+                    var c = this.$pageController;
+                    this.$pageController = null; //prevent from handleControllerChanged calling
+                    c.selectedIndex = index;
+                    this.$pageController = c;
+                }
+            }
+        };
+        /**
+         * @internal
+         */
         ScrollPane.prototype.adjustMaskContainer = function () {
             var mx, my;
             if (this.$displayOnLeft && this.$vtScrollBar != null)
@@ -10390,184 +10775,227 @@ var fgui;
             else
                 mx = Math.floor(this.$owner.margin.left);
             my = Math.floor(this.$owner.margin.top);
-            mx += this.$owner.$alignOffset.x;
-            my += this.$owner.$alignOffset.y;
-            this.$maskContainer.x = mx;
-            this.$maskContainer.y = my;
+            this.$maskContainer.position.set(mx, my);
+            if (this.$owner.$alignOffset.x != 0 || this.$owner.$alignOffset.y != 0) {
+                if (this.$alignContainer == null) {
+                    this.$alignContainer = new PIXI.Container();
+                    this.$maskContainer.addChild(this.$alignContainer);
+                    this.$alignContainer.addChild(this.$container);
+                }
+                this.$alignContainer.position.set(this.$owner.$alignOffset.x, this.$owner.$alignOffset.y);
+            }
+            else if (this.$alignContainer)
+                this.$alignContainer.position.set(0, 0);
         };
-        ScrollPane.prototype.setSize = function (aWidth, aHeight) {
+        ScrollPane.prototype.setSize = function (width, height) {
             this.adjustMaskContainer();
             if (this.$hzScrollBar) {
-                this.$hzScrollBar.y = aHeight - this.$hzScrollBar.height;
+                this.$hzScrollBar.y = height - this.$hzScrollBar.height;
                 if (this.$vtScrollBar && !this.$vScrollNone) {
-                    this.$hzScrollBar.width = aWidth - this.$vtScrollBar.width - this.$scrollBarMargin.left - this.$scrollBarMargin.right;
+                    this.$hzScrollBar.width = width - this.$vtScrollBar.width - this.$scrollBarMargin.left - this.$scrollBarMargin.right;
                     if (this.$displayOnLeft)
                         this.$hzScrollBar.x = this.$scrollBarMargin.left + this.$vtScrollBar.width;
                     else
                         this.$hzScrollBar.x = this.$scrollBarMargin.left;
                 }
                 else {
-                    this.$hzScrollBar.width = aWidth - this.$scrollBarMargin.left - this.$scrollBarMargin.right;
+                    this.$hzScrollBar.width = width - this.$scrollBarMargin.left - this.$scrollBarMargin.right;
                     this.$hzScrollBar.x = this.$scrollBarMargin.left;
                 }
             }
             if (this.$vtScrollBar) {
                 if (!this.$displayOnLeft)
-                    this.$vtScrollBar.x = aWidth - this.$vtScrollBar.width;
+                    this.$vtScrollBar.x = width - this.$vtScrollBar.width;
                 if (this.$hzScrollBar)
-                    this.$vtScrollBar.height = aHeight - this.$hzScrollBar.height - this.$scrollBarMargin.top - this.$scrollBarMargin.bottom;
+                    this.$vtScrollBar.height = height - this.$hzScrollBar.height - this.$scrollBarMargin.top - this.$scrollBarMargin.bottom;
                 else
-                    this.$vtScrollBar.height = aHeight - this.$scrollBarMargin.top - this.$scrollBarMargin.bottom;
+                    this.$vtScrollBar.height = height - this.$scrollBarMargin.top - this.$scrollBarMargin.bottom;
                 this.$vtScrollBar.y = this.$scrollBarMargin.top;
             }
-            this.$viewWidth = aWidth;
-            this.$viewHeight = aHeight;
+            this.$viewSize.x = width;
+            this.$viewSize.y = height;
             if (this.$hzScrollBar && !this.$hScrollNone)
-                this.$viewHeight -= this.$hzScrollBar.height;
+                this.$viewSize.y -= this.$hzScrollBar.height;
             if (this.$vtScrollBar && !this.$vScrollNone)
-                this.$viewWidth -= this.$vtScrollBar.width;
-            this.$viewWidth -= (this.$owner.margin.left + this.$owner.margin.right);
-            this.$viewHeight -= (this.$owner.margin.top + this.$owner.margin.bottom);
-            this.$viewWidth = Math.max(1, this.$viewWidth);
-            this.$viewHeight = Math.max(1, this.$viewHeight);
-            this.$pageSizeH = this.$viewWidth;
-            this.$pageSizeV = this.$viewHeight;
+                this.$viewSize.x -= this.$vtScrollBar.width;
+            this.$viewSize.x -= (this.$owner.margin.left + this.$owner.margin.right);
+            this.$viewSize.y -= (this.$owner.margin.top + this.$owner.margin.bottom);
+            this.$viewSize.x = Math.max(1, this.$viewSize.x);
+            this.$viewSize.y = Math.max(1, this.$viewSize.y);
+            this.$pageSize.x = this.$viewSize.x;
+            this.$pageSize.y = this.$viewSize.y;
             this.handleSizeChanged();
         };
-        ScrollPane.prototype.setContentSize = function (aWidth, aHeight) {
-            if (this.$contentWidth == aWidth && this.$contentHeight == aHeight)
+        ScrollPane.prototype.setContentSize = function (w, h) {
+            if (this.$contentSize.x == w && this.$contentSize.y == h)
                 return;
-            this.$contentWidth = aWidth;
-            this.$contentHeight = aHeight;
+            this.$contentSize.x = w;
+            this.$contentSize.y = h;
             this.handleSizeChanged();
         };
+        /**
+         * @internal
+         */
         ScrollPane.prototype.changeContentSizeOnScrolling = function (deltaWidth, deltaHeight, deltaPosX, deltaPosY) {
-            this.$contentWidth += deltaWidth;
-            this.$contentHeight += deltaHeight;
-            if (this.$isDragged) {
-                if (deltaPosX != 0)
-                    this.$container.x -= deltaPosX;
-                if (deltaPosY != 0)
-                    this.$container.y -= deltaPosY;
-                this.validateHolderPos();
-                this.$xOffset += deltaPosX;
-                this.$yOffset += deltaPosY;
-                var tmp = this.$y2 - this.$y1;
-                this.$y1 = this.$container.y;
-                this.$y2 = this.$y1 + tmp;
-                tmp = this.$x2 - this.$x1;
-                this.$x1 = this.$container.x;
-                this.$x2 = this.$x1 + tmp;
-                this.$yPos = -this.$container.y;
-                this.$xPos = -this.$container.x;
+            var isRightmost = this.$xPos == this.$overlapSize.x;
+            var isBottom = this.$yPos == this.$overlapSize.y;
+            this.$contentSize.x += deltaWidth;
+            this.$contentSize.y += deltaHeight;
+            this.handleSizeChanged();
+            if (this.$tweening == 1) {
+                //if the last scroll is CLINGING-SIDE, then just continue to cling
+                if (deltaWidth != 0 && isRightmost && this.$tweenChange.x < 0) {
+                    this.$xPos = this.$overlapSize.x;
+                    this.$tweenChange.x = -this.$xPos - this.$tweenStart.x;
+                }
+                if (deltaHeight != 0 && isBottom && this.$tweenChange.y < 0) {
+                    this.$yPos = this.$overlapSize.y;
+                    this.$tweenChange.y = -this.$yPos - this.$tweenStart.y;
+                }
             }
             else if (this.$tweening == 2) {
+                //re-pos to ensure the scrolling will go on smooth
                 if (deltaPosX != 0) {
                     this.$container.x -= deltaPosX;
-                    this.$throwTween.start.x -= deltaPosX;
+                    this.$tweenStart.x -= deltaPosX;
+                    this.$xPos = -this.$container.x;
                 }
                 if (deltaPosY != 0) {
                     this.$container.y -= deltaPosY;
-                    this.$throwTween.start.y -= deltaPosY;
+                    this.$tweenStart.y -= deltaPosY;
+                    this.$yPos = -this.$container.y;
                 }
             }
-            this.handleSizeChanged(true);
+            else if (this.$isDragging) {
+                if (deltaPosX != 0) {
+                    this.$container.x -= deltaPosX;
+                    this.$containerPos.x -= deltaPosX;
+                    this.$xPos = -this.$container.x;
+                }
+                if (deltaPosY != 0) {
+                    this.$container.y -= deltaPosY;
+                    this.$containerPos.y -= deltaPosY;
+                    this.$yPos = -this.$container.y;
+                }
+            }
+            else {
+                //if the last scroll is CLINGING-SIDE, then just continue to cling
+                if (deltaWidth != 0 && isRightmost) {
+                    this.$xPos = this.$overlapSize.x;
+                    this.$container.x = -this.$xPos;
+                }
+                if (deltaHeight != 0 && isBottom) {
+                    this.$yPos = this.$overlapSize.y;
+                    this.$container.y = -this.$yPos;
+                }
+            }
+            if (this.$pageMode)
+                this.updatePageController();
         };
         ScrollPane.prototype.handleSizeChanged = function (onScrolling) {
             if (onScrolling === void 0) { onScrolling = false; }
             if (this.$displayOnDemand) {
                 if (this.$vtScrollBar) {
-                    if (this.$contentHeight <= this.$viewHeight) {
+                    if (this.$contentSize.y <= this.$viewSize.y) {
                         if (!this.$vScrollNone) {
                             this.$vScrollNone = true;
-                            this.$viewWidth += this.$vtScrollBar.width;
+                            this.$viewSize.x += this.$vtScrollBar.width;
                         }
                     }
                     else {
                         if (this.$vScrollNone) {
                             this.$vScrollNone = false;
-                            this.$viewWidth -= this.$vtScrollBar.width;
+                            this.$viewSize.x -= this.$vtScrollBar.width;
                         }
                     }
                 }
                 if (this.$hzScrollBar) {
-                    if (this.$contentWidth <= this.$viewWidth) {
+                    if (this.$contentSize.x <= this.$viewSize.x) {
                         if (!this.$hScrollNone) {
                             this.$hScrollNone = true;
-                            this.$viewHeight += this.$hzScrollBar.height;
+                            this.$viewSize.y += this.$hzScrollBar.height;
                         }
                     }
                     else {
                         if (this.$hScrollNone) {
                             this.$hScrollNone = false;
-                            this.$viewHeight -= this.$hzScrollBar.height;
+                            this.$viewSize.y -= this.$hzScrollBar.height;
                         }
                     }
                 }
             }
             if (this.$vtScrollBar) {
-                if (this.$viewHeight < this.$vtScrollBar.minSize)
+                if (this.$viewSize.y < this.$vtScrollBar.minSize)
+                    //use this.$vtScrollBar.displayObject.visible instead of this.$vtScrollBar.visible... ScrollBar actually is not in its owner's display tree, so vtScrollBar.visible will not work
                     this.$vtScrollBar.displayObject.visible = false;
                 else {
                     this.$vtScrollBar.displayObject.visible = this.$scrollBarVisible && !this.$vScrollNone;
-                    if (this.$contentHeight == 0)
+                    if (this.$contentSize.y == 0)
                         this.$vtScrollBar.displayPerc = 0;
                     else
-                        this.$vtScrollBar.displayPerc = Math.min(1, this.$viewHeight / this.$contentHeight);
+                        this.$vtScrollBar.displayPerc = Math.min(1, this.$viewSize.y / this.$contentSize.y);
                 }
             }
             if (this.$hzScrollBar) {
-                if (this.$viewWidth < this.$hzScrollBar.minSize)
+                if (this.$viewSize.x < this.$hzScrollBar.minSize)
                     this.$hzScrollBar.displayObject.visible = false;
                 else {
                     this.$hzScrollBar.displayObject.visible = this.$scrollBarVisible && !this.$hScrollNone;
-                    if (this.$contentWidth == 0)
+                    if (this.$contentSize.x == 0)
                         this.$hzScrollBar.displayPerc = 0;
                     else
-                        this.$hzScrollBar.displayPerc = Math.min(1, this.$viewWidth / this.$contentWidth);
+                        this.$hzScrollBar.displayPerc = Math.min(1, this.$viewSize.x / this.$contentSize.x);
                 }
             }
             var rect = this.$maskContainer.scrollRect;
-            if (rect != null) {
-                rect.x = rect.y = 0;
-                rect.width = this.$viewWidth;
-                rect.height = this.$viewHeight;
+            if (rect) {
+                rect.width = this.$viewSize.x;
+                rect.height = this.$viewSize.y;
                 this.$maskContainer.scrollRect = rect;
             }
             if (this.$scrollType == 0 /* Horizontal */ || this.$scrollType == 2 /* Both */)
-                this.$xOverlap = Math.ceil(Math.max(0, this.$contentWidth - this.$viewWidth));
+                this.$overlapSize.x = Math.ceil(Math.max(0, this.$contentSize.x - this.$viewSize.x));
             else
-                this.$xOverlap = 0;
+                this.$overlapSize.x = 0;
             if (this.$scrollType == 1 /* Vertical */ || this.$scrollType == 2 /* Both */)
-                this.$yOverlap = Math.ceil(Math.max(0, this.$contentHeight - this.$viewHeight));
+                this.$overlapSize.y = Math.ceil(Math.max(0, this.$contentSize.y - this.$viewSize.y));
             else
-                this.$yOverlap = 0;
-            //TODO: need to handle if it's in tweening status and try to always stick at the edge
-            if (this.$tweening == 0 && onScrolling) {
-                if (this.$xPerc == 0 || this.$xPerc == 1) {
-                    this.$xPos = this.$xPerc * this.$xOverlap;
-                    this.$container.x = -this.$xPos;
+                this.$overlapSize.y = 0;
+            //bounds checking
+            this.$xPos = fgui.utils.NumberUtil.clamp(this.$xPos, 0, this.$overlapSize.x);
+            this.$yPos = fgui.utils.NumberUtil.clamp(this.$yPos, 0, this.$overlapSize.y);
+            if (this.$refreshBarAxis != null) {
+                var max = this.$overlapSize[this.$refreshBarAxis];
+                if (max == 0)
+                    max = Math.max(this.$contentSize[this.$refreshBarAxis] + this.$footerLockedSize - this.$viewSize[this.$refreshBarAxis], 0);
+                else
+                    max += this.$footerLockedSize;
+                if (this.$refreshBarAxis == "x") {
+                    this.$container.position.set(fgui.utils.NumberUtil.clamp(this.$container.x, -max, this.$headerLockedSize), fgui.utils.NumberUtil.clamp(this.$container.y, -this.$overlapSize.y, 0));
                 }
-                if (this.$yPerc == 0 || this.$yPerc == 1) {
-                    this.$yPos = this.$yPerc * this.$yOverlap;
-                    this.$container.y = -this.$yPos;
+                else {
+                    this.$container.position.set(fgui.utils.NumberUtil.clamp(this.$container.x, -this.$overlapSize.x, 0), fgui.utils.NumberUtil.clamp(this.$container.y, -max, this.$headerLockedSize));
+                }
+                if (this.$header != null) {
+                    if (this.$refreshBarAxis == "x")
+                        this.$header.height = this.$viewSize.y;
+                    else
+                        this.$header.width = this.$viewSize.x;
+                }
+                if (this.$footer != null) {
+                    if (this.$refreshBarAxis == "y")
+                        this.$footer.height = this.$viewSize.y;
+                    else
+                        this.$footer.width = this.$viewSize.x;
                 }
             }
             else {
-                this.$xPos = fgui.utils.NumberUtil.clamp(this.$xPos, 0, this.$xOverlap);
-                this.$xPerc = this.$xOverlap > 0 ? this.$xPos / this.$xOverlap : 0;
-                this.$yPos = fgui.utils.NumberUtil.clamp(this.$yPos, 0, this.$yOverlap);
-                this.$yPerc = this.$yOverlap > 0 ? this.$yPos / this.$yOverlap : 0;
+                this.$container.position.set(fgui.utils.NumberUtil.clamp(this.$container.x, -this.$overlapSize.x, 0), fgui.utils.NumberUtil.clamp(this.$container.y, -this.$overlapSize.y, 0));
             }
-            this.validateHolderPos();
-            if (this.$vtScrollBar != null)
-                this.$vtScrollBar.scrollPerc = this.$yPerc;
-            if (this.$hzScrollBar != null)
-                this.$hzScrollBar.scrollPerc = this.$xPerc;
-        };
-        ScrollPane.prototype.validateHolderPos = function () {
-            this.$container.x = fgui.utils.NumberUtil.clamp(this.$container.x, -this.$xOverlap, 0);
-            this.$container.y = fgui.utils.NumberUtil.clamp(this.$container.y, -this.$yOverlap, 0);
+            this.syncScrollBar();
+            this.checkRefreshBar();
+            if (this.$pageMode)
+                this.updatePageController();
         };
         ScrollPane.prototype.posChanged = function (ani) {
             if (this.$aniFlag == 0)
@@ -10576,213 +11004,122 @@ var fgui;
                 this.$aniFlag = -1;
             this.$needRefresh = true;
             fgui.GTimer.inst.callLater(this.refresh, this);
-            //kill the tweening and reset the pos if user set a new pos through API and currently the scrolling is not stopped yet
-            if (this.$tweening == 2)
-                this.killTween();
-        };
-        ScrollPane.prototype.killTween = function () {
-            if (this.$tweening == 1) {
-                this.$tweener.paused = true;
-                this.$tweening = 0;
-                this.$tweener = null;
-                this.syncScrollBar(true);
-            }
-            else if (this.$tweening == 2) {
-                this.$tweener.paused = true;
-                this.$tweener = null;
-                this.$tweening = 0;
-                this.validateHolderPos();
-                this.syncScrollBar(true);
-                this.emit("__scrollEnd" /* SCROLL_END */, this);
-            }
         };
         ScrollPane.prototype.refresh = function () {
             this.$needRefresh = false;
             fgui.GTimer.inst.remove(this.refresh, this);
-            if (this.$pageMode) {
-                var page = void 0;
-                var delta = void 0;
-                if (this.$yOverlap > 0 && this.$yPerc != 1 && this.$yPerc != 0) {
-                    page = Math.floor(this.$yPos / this.$pageSizeV);
-                    delta = this.$yPos - page * this.$pageSizeV;
-                    if (delta > this.$pageSizeV / 2)
-                        page++;
-                    this.$yPos = page * this.$pageSizeV;
-                    if (this.$yPos > this.$yOverlap) {
-                        this.$yPos = this.$yOverlap;
-                        this.$yPerc = 1;
-                    }
-                    else
-                        this.$yPerc = this.$yPos / this.$yOverlap;
-                }
-                if (this.$xOverlap > 0 && this.$xPerc != 1 && this.$xPerc != 0) {
-                    page = Math.floor(this.$xPos / this.$pageSizeH);
-                    delta = this.$xPos - page * this.$pageSizeH;
-                    if (delta > this.$pageSizeH / 2)
-                        page++;
-                    this.$xPos = page * this.$pageSizeH;
-                    if (this.$xPos > this.$xOverlap) {
-                        this.$xPos = this.$xOverlap;
-                        this.$xPerc = 1;
-                    }
-                    else
-                        this.$xPerc = this.$xPos / this.$xOverlap;
-                }
-            }
-            else if (this.$snapToItem) {
-                var pt = this.$owner.getSnappingPosition(this.$xPerc == 1 ? 0 : this.$xPos, this.$yPerc == 1 ? 0 : this.$yPos, ScrollPane.sHelperPoint);
-                if (this.$xPerc != 1 && pt.x != this.$xPos) {
-                    this.$xPos = pt.x;
-                    this.$xPerc = this.$xPos / this.$xOverlap;
-                    if (this.$xPerc > 1) {
-                        this.$xPerc = 1;
-                        this.$xPos = this.$xOverlap;
-                    }
-                }
-                if (this.$yPerc != 1 && pt.y != this.$yPos) {
-                    this.$yPos = pt.y;
-                    this.$yPerc = this.$yPos / this.$yOverlap;
-                    if (this.$yPerc > 1) {
-                        this.$yPerc = 1;
-                        this.$yPos = this.$yOverlap;
-                    }
-                }
+            if (this.$pageMode || this.$snapToItem) {
+                ScrollPane.sEndPos.set(-this.$xPos, -this.$yPos);
+                this.alignPosition(ScrollPane.sEndPos, false);
+                this.$xPos = -ScrollPane.sEndPos.x;
+                this.$yPos = -ScrollPane.sEndPos.y;
             }
             this.refresh2();
+            //Events.dispatch(Events.SCROLL, this.$owner.displayObject);
             this.emit("__scroll" /* SCROLL */, this);
             if (this.$needRefresh) {
                 this.$needRefresh = false;
                 fgui.GTimer.inst.remove(this.refresh, this);
                 this.refresh2();
             }
+            this.syncScrollBar();
             this.$aniFlag = 0;
         };
         ScrollPane.prototype.refresh2 = function () {
-            var contentXLoc = Math.floor(this.$xPos);
-            var contentYLoc = Math.floor(this.$yPos);
-            if (this.$aniFlag == 1 && !this.$isDragged) {
-                var toX = this.$container.x;
-                var toY = this.$container.y;
-                if (this.$yOverlap > 0)
-                    toY = -contentYLoc;
-                else {
-                    if (this.$container.y != 0)
-                        this.$container.y = 0;
-                }
-                if (this.$xOverlap > 0)
-                    toX = -contentXLoc;
+            if (this.$aniFlag == 1 && !this.$isDragging) {
+                var posX = void 0;
+                var posY = void 0;
+                if (this.$overlapSize.x > 0)
+                    posX = -Math.floor(this.$xPos);
                 else {
                     if (this.$container.x != 0)
                         this.$container.x = 0;
+                    posX = 0;
                 }
-                if (toX != this.$container.x || toY != this.$container.y) {
-                    if (this.$tweener != null)
-                        this.killTween();
+                if (this.$overlapSize.y > 0)
+                    posY = -Math.floor(this.$yPos);
+                else {
+                    if (this.$container.y != 0)
+                        this.$container.y = 0;
+                    posY = 0;
+                }
+                if (posX != this.$container.x || posY != this.$container.y) {
                     this.$tweening = 1;
-                    this.$maskContainer.interactiveChildren = false;
-                    this.$tweener = createjs.Tween.get(this.$container, { onChange: fgui.utils.Binder.create(this.$tweenUpdate, this) })
-                        .to({ x: toX, y: toY, }, 500, ScrollPane.$easeTypeFunc)
-                        .call(this.$tweenComplete, null, this);
+                    this.$tweenTime.set(0, 0);
+                    this.$tweenDuration.set(ScrollPane.TWEEN_MANUALLY_SET_DURATION, ScrollPane.TWEEN_MANUALLY_SET_DURATION);
+                    this.$tweenStart.set(this.$container.x, this.$container.y);
+                    this.$tweenChange.set(posX - this.$tweenStart.x, posY - this.$tweenStart.y);
+                    fgui.GTimer.inst.addLoop(1, this.tweenUpdate, this);
                 }
+                else if (this.$tweening != 0)
+                    this.killTween();
             }
             else {
-                if (this.$tweener != null)
+                if (this.$tweening != 0)
                     this.killTween();
-                //here we need to handle if user call refresh while the list is being dragged to ensure the dragging can go ahead continuously.
-                if (this.$isDragged) {
-                    this.$xOffset += this.$container.x - (-contentXLoc);
-                    this.$yOffset += this.$container.y - (-contentYLoc);
-                }
-                this.$container.y = -contentYLoc;
-                this.$container.x = -contentXLoc;
-                //make sure the scrolling can go ahead as expected when user's finger leaves from the device's screen.
-                if (this.$isDragged) {
-                    this.$y1 = this.$y2 = this.$container.y;
-                    this.$x1 = this.$x2 = this.$container.x;
-                }
-                if (this.$vtScrollBar)
-                    this.$vtScrollBar.scrollPerc = this.$yPerc;
-                if (this.$hzScrollBar)
-                    this.$hzScrollBar.scrollPerc = this.$xPerc;
+                this.$container.position.set(Math.floor(-this.$xPos), Math.floor(-this.$yPos));
+                this.loopCheckingCurrent();
             }
-        };
-        ScrollPane.prototype.syncPos = function () {
-            if (this.$xOverlap > 0) {
-                this.$xPos = fgui.utils.NumberUtil.clamp(-this.$container.x, 0, this.$xOverlap);
-                this.$xPerc = this.$xPos / this.$xOverlap;
-            }
-            if (this.$yOverlap > 0) {
-                this.$yPos = fgui.utils.NumberUtil.clamp(-this.$container.y, 0, this.$yOverlap);
-                this.$yPerc = this.$yPos / this.$yOverlap;
-            }
+            if (this.$pageMode)
+                this.updatePageController();
         };
         ScrollPane.prototype.syncScrollBar = function (end) {
             if (end === void 0) { end = false; }
-            if (end) {
-                if (this.$vtScrollBar) {
-                    if (this.$scrollBarDisplayAuto)
-                        this.showScrollBar(false);
-                }
-                if (this.$hzScrollBar) {
-                    if (this.$scrollBarDisplayAuto)
-                        this.showScrollBar(false);
-                }
-                this.$maskContainer.interactiveChildren = true;
+            if (this.$vtScrollBar != null) {
+                this.$vtScrollBar.scrollPerc = this.$overlapSize.y == 0 ? 0 : fgui.utils.NumberUtil.clamp(-this.$container.y, 0, this.$overlapSize.y) / this.$overlapSize.y;
+                if (this.$scrollBarDisplayAuto)
+                    this.showScrollBar(!end);
             }
-            else {
-                if (this.$vtScrollBar) {
-                    this.$vtScrollBar.scrollPerc = this.$yOverlap == 0 ? 0 : fgui.utils.NumberUtil.clamp(-this.$container.y, 0, this.$yOverlap) / this.$yOverlap;
-                    if (this.$scrollBarDisplayAuto)
-                        this.showScrollBar(true);
-                }
-                if (this.$hzScrollBar) {
-                    this.$hzScrollBar.scrollPerc = this.$xOverlap == 0 ? 0 : fgui.utils.NumberUtil.clamp(-this.$container.x, 0, this.$xOverlap) / this.$xOverlap;
-                    if (this.$scrollBarDisplayAuto)
-                        this.showScrollBar(true);
-                }
+            if (this.$hzScrollBar != null) {
+                this.$hzScrollBar.scrollPerc = this.$overlapSize.x == 0 ? 0 : fgui.utils.NumberUtil.clamp(-this.$container.x, 0, this.$overlapSize.x) / this.$overlapSize.x;
+                if (this.$scrollBarDisplayAuto)
+                    this.showScrollBar(!end);
             }
+            if (end)
+                this.$maskContainer.interactive = true;
         };
-        ScrollPane.prototype.$mouseDown = function (evt) {
+        ScrollPane.prototype.$mouseDown = function (e) {
             if (!this.$touchEffect)
                 return;
-            if (this.$tweener != null)
+            if (this.$tweening != 0) {
                 this.killTween();
-            ScrollPane.sHelperPoint = evt.data.getLocalPosition(this.$maskContainer, ScrollPane.sHelperPoint);
-            this.$x1 = this.$x2 = this.$container.x;
-            this.$y1 = this.$y2 = this.$container.y;
-            this.$xOffset = ScrollPane.sHelperPoint.x - this.$container.x;
-            this.$yOffset = ScrollPane.sHelperPoint.y - this.$container.y;
-            this.$time1 = this.$time2 = Date.now();
-            this.$holdAreaPoint.x = ScrollPane.sHelperPoint.x;
-            this.$holdAreaPoint.y = ScrollPane.sHelperPoint.y;
+                this.$isDragging = true;
+            }
+            else
+                this.$isDragging = false;
+            var globalMouse = PIXI.utils.isMobile.any ?
+                this.$owner.globalToLocal(e.data.global.x, e.data.global.y)
+                : this.$owner.globalToLocal(fgui.GRoot.globalMouseStatus.mouseX, fgui.GRoot.globalMouseStatus.mouseY, ScrollPane.sHelperPoint);
+            this.$containerPos.set(this.$container.x, this.$container.y);
+            this.$beginTouchPos.copy(globalMouse);
+            this.$lastTouchPos.copy(globalMouse);
+            this.$lastTouchGlobalPos.copy(globalMouse);
             this.$isHoldAreaDone = false;
-            this.$isDragged = false;
-            var g = fgui.GRoot.inst.nativeStage;
-            g.on(fgui.InteractiveEvents.Move, this.$touchMove, this);
-            g.on(fgui.InteractiveEvents.Up, this.$touchEnd, this);
-            g.on(fgui.InteractiveEvents.Click, this.$touchTap, this);
+            this.$velocity.set(0, 0);
+            this.$velocityScale = 1;
+            this.$lastMoveTime = fgui.GTimer.inst.curTime / 1000;
+            fgui.GRoot.inst.nativeStage.on(fgui.InteractiveEvents.Move, this.$mouseMove, this);
+            fgui.GRoot.inst.nativeStage.on(fgui.InteractiveEvents.Up, this.$mouseUp, this);
+            fgui.GRoot.inst.nativeStage.on(fgui.InteractiveEvents.Click, this.$click, this);
         };
-        ScrollPane.prototype.$touchMove = function (evt) {
-            if (!this.$onStage || !this.$owner.finalVisible)
-                return;
+        ScrollPane.prototype.$mouseMove = function () {
             if (!this.$touchEffect)
                 return;
             if (ScrollPane.draggingPane != null && ScrollPane.draggingPane != this || fgui.GObject.draggingObject != null)
                 return;
             var sensitivity = fgui.UIConfig.touchScrollSensitivity;
+            var globalMouse = this.$owner.globalToLocal(fgui.GRoot.globalMouseStatus.mouseX, fgui.GRoot.globalMouseStatus.mouseY, ScrollPane.sHelperPoint);
             var diff, diff2;
-            var sv, sh, st;
-            var pt = evt.data.getLocalPosition(this.$maskContainer, ScrollPane.sHelperPoint);
+            var sv, sh;
             if (this.$scrollType == 1 /* Vertical */) {
                 if (!this.$isHoldAreaDone) {
-                    //this means the gesture on vertical direction is being observed
+                    //gesture on vertical dir is being observed
                     ScrollPane.$gestureFlag |= 1;
-                    diff = Math.abs(this.$holdAreaPoint.y - pt.y);
+                    diff = Math.abs(this.$beginTouchPos.y - globalMouse.y);
                     if (diff < sensitivity)
                         return;
-                    //observe the gesture on the vertical direction, so we need to detect strictly whether the scrolling moves according to the vertical direction to avoid conflict.
                     if ((ScrollPane.$gestureFlag & 2) != 0) {
-                        diff2 = Math.abs(this.$holdAreaPoint.x - pt.x);
+                        diff2 = Math.abs(this.$beginTouchPos.x - globalMouse.x);
                         if (diff < diff2)
                             return;
                     }
@@ -10791,12 +11128,12 @@ var fgui;
             }
             else if (this.$scrollType == 0 /* Horizontal */) {
                 if (!this.$isHoldAreaDone) {
-                    ScrollPane.$gestureFlag |= 2;
-                    diff = Math.abs(this.$holdAreaPoint.x - pt.x);
+                    ScrollPane.$gestureFlag |= 2; //gesture on horz dir is being observed
+                    diff = Math.abs(this.$beginTouchPos.x - globalMouse.x);
                     if (diff < sensitivity)
                         return;
                     if ((ScrollPane.$gestureFlag & 1) != 0) {
-                        diff2 = Math.abs(this.$holdAreaPoint.y - pt.y);
+                        diff2 = Math.abs(this.$beginTouchPos.y - globalMouse.y);
                         if (diff < diff2)
                             return;
                     }
@@ -10804,296 +11141,605 @@ var fgui;
                 sh = true;
             }
             else {
-                ScrollPane.$gestureFlag = 3;
+                ScrollPane.$gestureFlag = 3; //both
                 if (!this.$isHoldAreaDone) {
-                    diff = Math.abs(this.$holdAreaPoint.y - pt.y);
+                    diff = Math.abs(this.$beginTouchPos.y - globalMouse.y);
                     if (diff < sensitivity) {
-                        diff = Math.abs(this.$holdAreaPoint.x - pt.x);
+                        diff = Math.abs(this.$beginTouchPos.x - globalMouse.x);
                         if (diff < sensitivity)
                             return;
                     }
                 }
                 sv = sh = true;
             }
-            var t = Date.now();
-            if (t - this.$time2 > 50) {
-                this.$time2 = this.$time1;
-                this.$time1 = t;
-                st = true;
-            }
+            var newPosX = Math.floor(this.$containerPos.x + globalMouse.x - this.$beginTouchPos.x);
+            var newPosY = Math.floor(this.$containerPos.y + globalMouse.y - this.$beginTouchPos.y);
             if (sv) {
-                var y = Math.floor(ScrollPane.sHelperPoint.y - this.$yOffset);
-                if (y > 0) {
-                    if (!this.$bouncebackEffect || this.$inertiaDisabled)
-                        this.$container.y = 0;
-                    else
-                        this.$container.y = Math.floor(y * 0.5);
-                }
-                else if (y < -this.$yOverlap || this.$inertiaDisabled) {
+                if (newPosY > 0) {
                     if (!this.$bouncebackEffect)
-                        this.$container.y = -Math.floor(this.$yOverlap);
+                        this.$container.y = 0;
+                    else if (this.$header != null && this.$header.height != 0)
+                        this.$container.y = Math.floor(Math.min(newPosY * 0.5, this.$header.height));
                     else
-                        this.$container.y = Math.floor((y - this.$yOverlap) * 0.5);
+                        this.$container.y = Math.floor(Math.min(newPosY * 0.5, this.$viewSize.y * ScrollPane.PULL_DIST_RATIO));
                 }
-                else {
-                    this.$container.y = y;
+                else if (newPosY < -this.$overlapSize.y) {
+                    if (!this.$bouncebackEffect)
+                        this.$container.y = -this.$overlapSize.y;
+                    else if (this.$footer != null && this.$footer.height > 0)
+                        this.$container.y = Math.floor(Math.max((newPosY + this.$overlapSize.y) * 0.5, -this.$footer.height) - this.$overlapSize.y);
+                    else
+                        this.$container.y = Math.floor(Math.max((newPosY + this.$overlapSize.y) * 0.5, -this.$viewSize.y * ScrollPane.PULL_DIST_RATIO) - this.$overlapSize.y);
                 }
-                if (st) {
-                    this.$y2 = this.$y1;
-                    this.$y1 = this.$container.y;
-                }
+                else
+                    this.$container.y = newPosY;
             }
             if (sh) {
-                var x = Math.floor(ScrollPane.sHelperPoint.x - this.$xOffset);
-                if (x > 0) {
-                    if (!this.$bouncebackEffect || this.$inertiaDisabled)
-                        this.$container.x = 0;
-                    else
-                        this.$container.x = Math.floor(x * 0.5);
-                }
-                else if (x < 0 - this.$xOverlap || this.$inertiaDisabled) {
+                if (newPosX > 0) {
                     if (!this.$bouncebackEffect)
-                        this.$container.x = -Math.floor(this.$xOverlap);
+                        this.$container.x = 0;
+                    else if (this.$header != null && this.$header.width != 0)
+                        this.$container.x = Math.floor(Math.min(newPosX * 0.5, this.$header.width));
                     else
-                        this.$container.x = Math.floor((x - this.$xOverlap) * 0.5);
+                        this.$container.x = Math.floor(Math.min(newPosX * 0.5, this.$viewSize.x * ScrollPane.PULL_DIST_RATIO));
                 }
-                else {
-                    this.$container.x = x;
+                else if (newPosX < 0 - this.$overlapSize.x) {
+                    if (!this.$bouncebackEffect)
+                        this.$container.x = -this.$overlapSize.x;
+                    else if (this.$footer != null && this.$footer.width > 0)
+                        this.$container.x = Math.floor(Math.max((newPosX + this.$overlapSize.x) * 0.5, -this.$footer.width) - this.$overlapSize.x);
+                    else
+                        this.$container.x = Math.floor(Math.max((newPosX + this.$overlapSize.x) * 0.5, -this.$viewSize.x * ScrollPane.PULL_DIST_RATIO) - this.$overlapSize.x);
                 }
-                if (st) {
-                    this.$x2 = this.$x1;
-                    this.$x1 = this.$container.x;
+                else
+                    this.$container.x = newPosX;
+            }
+            //update acceleration
+            var frameRate = fgui.GRoot.inst.applicationContext.ticker.FPS;
+            var now = fgui.GTimer.inst.curTime / 1000;
+            var deltaTime = Math.max(now - this.$lastMoveTime, 1 / frameRate);
+            var deltaPositionX = globalMouse.x - this.$lastTouchPos.x;
+            var deltaPositionY = globalMouse.y - this.$lastTouchPos.y;
+            if (!sh)
+                deltaPositionX = 0;
+            if (!sv)
+                deltaPositionY = 0;
+            if (deltaTime != 0) {
+                var elapsed = deltaTime * frameRate - 1;
+                if (elapsed > 1) {
+                    var factor = Math.pow(0.833, elapsed);
+                    this.$velocity.x = this.$velocity.x * factor;
+                    this.$velocity.y = this.$velocity.y * factor;
+                }
+                this.$velocity.x = fgui.utils.NumberUtil.lerp(this.$velocity.x, deltaPositionX * 60 / frameRate / deltaTime, deltaTime * 10);
+                this.$velocity.y = fgui.utils.NumberUtil.lerp(this.$velocity.y, deltaPositionY * 60 / frameRate / deltaTime, deltaTime * 10);
+            }
+            //in the inertia scrolling we need the offset value to screen space, so here we need to reocrd the offset ratio
+            var deltaGlobalPositionX = this.$lastTouchGlobalPos.x - globalMouse.x;
+            var deltaGlobalPositionY = this.$lastTouchGlobalPos.y - globalMouse.y;
+            if (deltaPositionX != 0)
+                this.$velocityScale = Math.abs(deltaGlobalPositionX / deltaPositionX);
+            else if (deltaPositionY != 0)
+                this.$velocityScale = Math.abs(deltaGlobalPositionY / deltaPositionY);
+            this.$lastTouchPos.copy(globalMouse);
+            this.$lastTouchGlobalPos.copy(globalMouse);
+            this.$lastMoveTime = now;
+            //update position
+            if (this.$overlapSize.x > 0)
+                this.$xPos = fgui.utils.NumberUtil.clamp(-this.$container.x, 0, this.$overlapSize.x);
+            if (this.$overlapSize.y > 0)
+                this.$yPos = fgui.utils.NumberUtil.clamp(-this.$container.y, 0, this.$overlapSize.y);
+            if (this.$loop != 0) {
+                newPosX = this.$container.x;
+                newPosY = this.$container.y;
+                if (this.loopCheckingCurrent()) {
+                    this.$containerPos.x += this.$container.x - newPosX;
+                    this.$containerPos.y += this.$container.y - newPosY;
                 }
             }
             ScrollPane.draggingPane = this;
-            this.$maskContainer.interactiveChildren = false;
             this.$isHoldAreaDone = true;
-            this.$isDragged = true;
-            this.syncPos();
+            this.$isDragging = true;
+            this.$maskContainer.interactive = false;
             this.syncScrollBar();
+            this.checkRefreshBar();
+            if (this.$pageMode)
+                this.updatePageController();
             this.emit("__scroll" /* SCROLL */, this);
+            //Events.dispatch(Events.SCROLL, this.$owner.displayObject);
         };
-        ScrollPane.prototype.$touchEnd = function (evt) {
-            var g = fgui.GRoot.inst.nativeStage;
-            g.off(fgui.InteractiveEvents.Move, this.$touchMove, this);
-            g.off(fgui.InteractiveEvents.Up, this.$touchEnd, this);
-            g.off(fgui.InteractiveEvents.Click, this.$touchTap, this);
+        ScrollPane.prototype.$mouseUp = function () {
+            fgui.GRoot.inst.nativeStage.off(fgui.InteractiveEvents.Move, this.$mouseMove, this);
+            fgui.GRoot.inst.nativeStage.off(fgui.InteractiveEvents.Up, this.$mouseUp, this);
+            fgui.GRoot.inst.nativeStage.off(fgui.InteractiveEvents.Click, this.$click, this);
             if (ScrollPane.draggingPane == this)
                 ScrollPane.draggingPane = null;
             ScrollPane.$gestureFlag = 0;
-            if (!this.$isDragged || !this.$touchEffect || this.$inertiaDisabled || !this.$owner.onStage)
+            if (!this.$isDragging || !this.$touchEffect) {
+                this.$isDragging = false;
+                this.$maskContainer.interactive = true;
                 return;
-            var time = (Date.now() - this.$time2) / 1000;
-            if (time == 0)
-                time = 0.001;
-            var yVelocity = (this.$container.y - this.$y2) / time * 2 * fgui.UIConfig.defaultTouchScrollSpeedRatio;
-            var xVelocity = (this.$container.x - this.$x2) / time * 2 * fgui.UIConfig.defaultTouchScrollSpeedRatio;
-            var duration = 0.3;
-            this.$throwTween.start.x = this.$container.x;
-            this.$throwTween.start.y = this.$container.y;
-            var change1 = this.$throwTween.change1;
-            var change2 = this.$throwTween.change2;
-            var endX = 0;
-            var endY = 0;
-            var page = 0;
-            var delta = 0;
-            var fireRelease = 0;
-            var testPageSize;
-            if (this.$scrollType == 2 /* Both */ || this.$scrollType == 0 /* Horizontal */) {
-                if (this.$container.x > fgui.UIConfig.touchDragSensitivity)
-                    fireRelease = 1;
-                else if (this.$container.x < -this.$xOverlap - fgui.UIConfig.touchDragSensitivity)
-                    fireRelease = 2;
-                change1.x = ThrowTween.calculateChange(xVelocity, duration);
-                change2.x = 0;
-                endX = this.$container.x + change1.x;
-                if (this.$pageMode && endX < 0 && endX > -this.$xOverlap) {
-                    page = Math.floor(-endX / this.$pageSizeH);
-                    testPageSize = Math.min(this.$pageSizeH, this.$contentWidth - (page + 1) * this.$pageSizeH);
-                    delta = -endX - page * this.$pageSizeH;
-                    //magnet magic
-                    if (Math.abs(change1.x) > this.$pageSizeH) {
-                        if (delta > testPageSize * 0.5)
-                            page++;
-                    }
-                    else {
-                        if (delta > testPageSize * (change1.x < 0 ? 0.3 : 0.7))
-                            page++;
-                    }
-                    //re-calculate the destination point
-                    endX = -page * this.$pageSizeH;
-                    if (endX < -this.$xOverlap)
-                        endX = -this.$xOverlap;
-                    change1.x = endX - this.$container.x;
+            }
+            this.$isDragging = false;
+            this.$maskContainer.interactive = true;
+            this.$tweenStart.set(this.$container.x, this.$container.y);
+            ScrollPane.sEndPos.set(this.$tweenStart.x, this.$tweenStart.y);
+            var flag = false;
+            if (this.$container.x > 0) {
+                ScrollPane.sEndPos.x = 0;
+                flag = true;
+            }
+            else if (this.$container.x < -this.$overlapSize.x) {
+                ScrollPane.sEndPos.x = -this.$overlapSize.x;
+                flag = true;
+            }
+            if (this.$container.y > 0) {
+                ScrollPane.sEndPos.y = 0;
+                flag = true;
+            }
+            else if (this.$container.y < -this.$overlapSize.y) {
+                ScrollPane.sEndPos.y = -this.$overlapSize.y;
+                flag = true;
+            }
+            if (flag) {
+                this.$tweenChange.set(ScrollPane.sEndPos.x - this.$tweenStart.x, ScrollPane.sEndPos.y - this.$tweenStart.y);
+                if (this.$tweenChange.x < -fgui.UIConfig.touchDragSensitivity || this.$tweenChange.y < -fgui.UIConfig.touchDragSensitivity) {
+                    this.$refreshEventDispatching = true;
+                    this.emit("__pullDownRelease" /* PULL_DOWN_RELEASE */);
+                    //Events.dispatch(Events.PULLthis.$DOWNthis.$RELEASE, this.$owner.displayObject);
+                    this.$refreshEventDispatching = false;
                 }
-            }
-            else
-                change1.x = change2.x = 0;
-            if (this.$scrollType == 2 /* Both */ || this.$scrollType == 1 /* Vertical */) {
-                if (this.$container.y > fgui.UIConfig.touchDragSensitivity)
-                    fireRelease = 1;
-                else if (this.$container.y < -this.$yOverlap - fgui.UIConfig.touchDragSensitivity)
-                    fireRelease = 2;
-                change1.y = ThrowTween.calculateChange(yVelocity, duration);
-                change2.y = 0;
-                endY = this.$container.y + change1.y;
-                if (this.$pageMode && endY < 0 && endY > -this.$yOverlap) {
-                    page = Math.floor(-endY / this.$pageSizeV);
-                    testPageSize = Math.min(this.$pageSizeV, this.$contentHeight - (page + 1) * this.$pageSizeV);
-                    delta = -endY - page * this.$pageSizeV;
-                    if (Math.abs(change1.y) > this.$pageSizeV) {
-                        if (delta > testPageSize * 0.5)
-                            page++;
-                    }
-                    else {
-                        if (delta > testPageSize * (change1.y < 0 ? 0.3 : 0.7))
-                            page++;
-                    }
-                    endY = -page * this.$pageSizeV;
-                    if (endY < -this.$yOverlap)
-                        endY = -this.$yOverlap;
-                    change1.y = endY - this.$container.y;
+                else if (this.$tweenChange.x > fgui.UIConfig.touchDragSensitivity || this.$tweenChange.y > fgui.UIConfig.touchDragSensitivity) {
+                    this.$refreshEventDispatching = true;
+                    this.emit("__pullUpRelease" /* PULL_UP_RELEASE */);
+                    //Events.dispatch(Events.PULLthis.$UPthis.$RELEASE, this.$owner.displayObject);
+                    this.$refreshEventDispatching = false;
                 }
-            }
-            else
-                change1.y = change2.y = 0;
-            if (this.$snapToItem && !this.$pageMode) {
-                endX = -endX;
-                endY = -endY;
-                var pt = this.$owner.getSnappingPosition(endX, endY, ScrollPane.sHelperPoint);
-                endX = -pt.x;
-                endY = -pt.y;
-                change1.x = endX - this.$container.x;
-                change1.y = endY - this.$container.y;
-            }
-            if (this.$bouncebackEffect) {
-                if (endX > 0)
-                    change2.x = 0 - this.$container.x - change1.x;
-                else if (endX < -this.$xOverlap)
-                    change2.x = -this.$xOverlap - this.$container.x - change1.x;
-                if (endY > 0)
-                    change2.y = 0 - this.$container.y - change1.y;
-                else if (endY < -this.$yOverlap)
-                    change2.y = -this.$yOverlap - this.$container.y - change1.y;
+                if (this.$headerLockedSize > 0 && ScrollPane.sEndPos[this.$refreshBarAxis] == 0) {
+                    ScrollPane.sEndPos[this.$refreshBarAxis] = this.$headerLockedSize;
+                    this.$tweenChange.x = ScrollPane.sEndPos.x - this.$tweenStart.x;
+                    this.$tweenChange.y = ScrollPane.sEndPos.y - this.$tweenStart.y;
+                }
+                else if (this.$footerLockedSize > 0 && ScrollPane.sEndPos[this.$refreshBarAxis] == -this.$overlapSize[this.$refreshBarAxis]) {
+                    var max = this.$overlapSize[this.$refreshBarAxis];
+                    if (max == 0)
+                        max = Math.max(this.$contentSize[this.$refreshBarAxis] + this.$footerLockedSize - this.$viewSize[this.$refreshBarAxis], 0);
+                    else
+                        max += this.$footerLockedSize;
+                    ScrollPane.sEndPos[this.$refreshBarAxis] = -max;
+                    this.$tweenChange.x = ScrollPane.sEndPos.x - this.$tweenStart.x;
+                    this.$tweenChange.y = ScrollPane.sEndPos.y - this.$tweenStart.y;
+                }
+                this.$tweenDuration.set(ScrollPane.TWEEN_DEFAULT_DURATION, ScrollPane.TWEEN_DEFAULT_DURATION);
             }
             else {
-                if (endX > 0)
-                    change1.x = 0 - this.$container.x;
-                else if (endX < -this.$xOverlap)
-                    change1.x = -this.$xOverlap - this.$container.x;
-                if (endY > 0)
-                    change1.y = 0 - this.$container.y;
-                else if (endY < -this.$yOverlap)
-                    change1.y = -this.$yOverlap - this.$container.y;
+                if (!this.$inertiaDisabled) {
+                    var frameRate = fgui.GRoot.inst.applicationContext.ticker.FPS;
+                    var elapsed = (fgui.GTimer.inst.curTime / 1000 - this.$lastMoveTime) * frameRate - 1;
+                    if (elapsed > 1) {
+                        var factor = Math.pow(0.833, elapsed);
+                        this.$velocity.x = this.$velocity.x * factor;
+                        this.$velocity.y = this.$velocity.y * factor;
+                    }
+                    //calc dist & duration by speed
+                    this.updateTargetAndDuration(this.$tweenStart, ScrollPane.sEndPos);
+                }
+                else
+                    this.$tweenDuration.set(ScrollPane.TWEEN_DEFAULT_DURATION, ScrollPane.TWEEN_DEFAULT_DURATION);
+                ScrollPane.sOldChange.set(ScrollPane.sEndPos.x - this.$tweenStart.x, ScrollPane.sEndPos.y - this.$tweenStart.y);
+                //adjust
+                this.loopCheckingTarget(ScrollPane.sEndPos);
+                if (this.$pageMode || this.$snapToItem)
+                    this.alignPosition(ScrollPane.sEndPos, true);
+                this.$tweenChange.x = ScrollPane.sEndPos.x - this.$tweenStart.x;
+                this.$tweenChange.y = ScrollPane.sEndPos.y - this.$tweenStart.y;
+                if (this.$tweenChange.x == 0 && this.$tweenChange.y == 0) {
+                    if (this.$scrollBarDisplayAuto)
+                        this.showScrollBar(false);
+                    return;
+                }
+                if (this.$pageMode || this.$snapToItem) {
+                    this.fixDuration("x", ScrollPane.sOldChange.x);
+                    this.fixDuration("y", ScrollPane.sOldChange.y);
+                }
             }
-            this.$throwTween.value = 0;
-            this.$throwTween.change1 = change1;
-            this.$throwTween.change2 = change2;
-            if (this.$tweener != null)
-                this.killTween();
             this.$tweening = 2;
-            this.$tweener = createjs.Tween.get(this.$throwTween, { onChange: fgui.utils.Binder.create(this.$tweenUpdate2, this) })
-                .to({ value: 1 }, duration * 1000, ScrollPane.$easeTypeFunc)
-                .call(this.$tweenComplete2, null, this);
-            if (fireRelease == 1)
-                this.emit("__pullDownRelease" /* PULL_DOWN_RELEASE */, this);
-            else if (fireRelease == 2)
-                this.emit("__pullUpRelease" /* PULL_UP_RELEASE */, this);
+            this.$tweenTime.set(0, 0);
+            fgui.GTimer.inst.addLoop(1, this.tweenUpdate, this);
         };
-        ScrollPane.prototype.$touchTap = function (evt) {
-            this.$isDragged = false;
+        ScrollPane.prototype.$click = function () {
+            this.$isDragging = false;
         };
-        ScrollPane.prototype.$rollOver = function (evt) {
+        ScrollPane.prototype.$mouseWheel = function (evt) {
+            if (!this.$mouseWheelEnabled)
+                return;
+            var delta = evt.delta > 0 ? -1 : (evt.delta < 0 ? 1 : 0);
+            if (this.$overlapSize.x > 0 && this.$overlapSize.y == 0) {
+                if (this.$pageMode)
+                    this.setPosX(this.$xPos + this.$pageSize.x * delta, false);
+                else
+                    this.setPosX(this.$xPos + this.$mouseWheelSpeed * delta, false);
+            }
+            else {
+                if (this.$pageMode)
+                    this.setPosY(this.$yPos + this.$pageSize.y * delta, false);
+                else
+                    this.setPosY(this.$yPos + this.$mouseWheelSpeed * delta, false);
+            }
+        };
+        ScrollPane.prototype.$rollOver = function () {
             this.showScrollBar(true);
         };
-        ScrollPane.prototype.$rollOut = function (evt) {
+        ScrollPane.prototype.$rollOut = function () {
             this.showScrollBar(false);
         };
-        ScrollPane.prototype.dispose = function () {
-            fgui.GTimer.inst.remove(this.refresh, this);
-            fgui.GTimer.inst.remove(this.setScrollBarVisible, this);
-            createjs.Tween.removeTweens(this.$throwTween);
-            createjs.Tween.removeTweens(this.$container);
-            if (this.$tweener) {
-                this.$tweener.removeAllEventListeners();
-                this.$tweener = null;
-            }
-            this.$owner.$rootContainer.off("added", this.$ownerAdded, this);
-            this.$owner.$rootContainer.off("removed", this.$ownerRemoved, this);
-            this.$owner.off(fgui.InteractiveEvents.Over, this.$rollOver, this);
-            this.$owner.off(fgui.InteractiveEvents.Out, this.$rollOut, this);
-            this.$owner.off(fgui.InteractiveEvents.Down, this.$mouseDown, this);
-            var g = fgui.GRoot.inst.nativeStage;
-            g.off(fgui.InteractiveEvents.Move, this.$touchMove, this);
-            g.off(fgui.InteractiveEvents.Up, this.$touchEnd, this);
-            g.off(fgui.InteractiveEvents.Click, this.$touchTap, this);
-        };
-        ScrollPane.prototype.showScrollBar = function (val) {
-            if (val) {
-                this.setScrollBarVisible(true);
+        ScrollPane.prototype.showScrollBar = function (visible) {
+            if (visible) {
                 fgui.GTimer.inst.remove(this.setScrollBarVisible, this);
+                this.setScrollBarVisible(true);
             }
             else
-                fgui.GTimer.inst.add(500, 1, this.setScrollBarVisible, this, val);
+                fgui.GTimer.inst.add(500, 1, this.setScrollBarVisible, this, visible);
         };
-        ScrollPane.prototype.setScrollBarVisible = function (val) {
-            this.$scrollBarVisible = val && this.$viewWidth > 0 && this.$viewHeight > 0;
+        ScrollPane.prototype.setScrollBarVisible = function (visible) {
+            this.$scrollBarVisible = visible && this.$viewSize.x > 0 && this.$viewSize.y > 0;
             if (this.$vtScrollBar)
                 this.$vtScrollBar.displayObject.visible = this.$scrollBarVisible && !this.$vScrollNone;
             if (this.$hzScrollBar)
                 this.$hzScrollBar.displayObject.visible = this.$scrollBarVisible && !this.$hScrollNone;
         };
-        ScrollPane.prototype.$tweenUpdate = function () {
-            this.syncScrollBar();
-            this.emit("__scroll" /* SCROLL */, this);
+        ScrollPane.prototype.getLoopPartSize = function (division, axis) {
+            var pad = 0;
+            if (this.$owner instanceof fgui.GList)
+                pad = axis == "x" ? this.$owner.columnGap : this.$owner.lineGap;
+            return (this.$contentSize[axis] + pad) / division;
         };
-        ScrollPane.prototype.$tweenComplete = function () {
+        ScrollPane.prototype.loopCheckingCurrent = function () {
+            var changed = false;
+            if (this.$loop == 1 && this.$overlapSize.x > 0) {
+                if (this.$xPos < 0.001) {
+                    this.$xPos += this.getLoopPartSize(2, "x");
+                    changed = true;
+                }
+                else if (this.$xPos >= this.$overlapSize.x) {
+                    this.$xPos -= this.getLoopPartSize(2, "x");
+                    changed = true;
+                }
+            }
+            else if (this.$loop == 2 && this.$overlapSize.y > 0) {
+                if (this.$yPos < 0.001) {
+                    this.$yPos += this.getLoopPartSize(2, "y");
+                    changed = true;
+                }
+                else if (this.$yPos >= this.$overlapSize.y) {
+                    this.$yPos -= this.getLoopPartSize(2, "y");
+                    changed = true;
+                }
+            }
+            if (changed)
+                this.$container.position.set(Math.floor(-this.$xPos), Math.floor(-this.$yPos));
+            return changed;
+        };
+        ScrollPane.prototype.loopCheckingTarget = function (endPos) {
+            if (this.$loop == 1)
+                this.loopCheckingTarget2(endPos, "x");
+            if (this.$loop == 2)
+                this.loopCheckingTarget2(endPos, "y");
+        };
+        ScrollPane.prototype.loopCheckingTarget2 = function (endPos, axis) {
+            var halfSize;
+            var tmp;
+            if (endPos[axis] > 0) {
+                halfSize = this.getLoopPartSize(2, axis);
+                tmp = this.$tweenStart[axis] - halfSize;
+                if (tmp <= 0 && tmp >= -this.$overlapSize[axis]) {
+                    endPos[axis] -= halfSize;
+                    this.$tweenStart[axis] = tmp;
+                }
+            }
+            else if (endPos[axis] < -this.$overlapSize[axis]) {
+                halfSize = this.getLoopPartSize(2, axis);
+                tmp = this.$tweenStart[axis] + halfSize;
+                if (tmp <= 0 && tmp >= -this.$overlapSize[axis]) {
+                    endPos[axis] += halfSize;
+                    this.$tweenStart[axis] = tmp;
+                }
+            }
+        };
+        ScrollPane.prototype.loopCheckingNewPos = function (value, axis) {
+            if (this.$overlapSize[axis] == 0)
+                return value;
+            var pos = axis == "x" ? this.$xPos : this.$yPos;
+            var changed = false;
+            var v;
+            if (value < 0.001) {
+                value += this.getLoopPartSize(2, axis);
+                if (value > pos) {
+                    v = this.getLoopPartSize(6, axis);
+                    v = Math.ceil((value - pos) / v) * v;
+                    pos = fgui.utils.NumberUtil.clamp(pos + v, 0, this.$overlapSize[axis]);
+                    changed = true;
+                }
+            }
+            else if (value >= this.$overlapSize[axis]) {
+                value -= this.getLoopPartSize(2, axis);
+                if (value < pos) {
+                    v = this.getLoopPartSize(6, axis);
+                    v = Math.ceil((pos - value) / v) * v;
+                    pos = fgui.utils.NumberUtil.clamp(pos - v, 0, this.$overlapSize[axis]);
+                    changed = true;
+                }
+            }
+            if (changed) {
+                if (axis == "x")
+                    this.$container.x = -Math.floor(pos);
+                else
+                    this.$container.y = -Math.floor(pos);
+            }
+            return value;
+        };
+        ScrollPane.prototype.alignPosition = function (pos, inertialScrolling) {
+            if (this.$pageMode) {
+                pos.x = this.alignByPage(pos.x, "x", inertialScrolling);
+                pos.y = this.alignByPage(pos.y, "y", inertialScrolling);
+            }
+            else if (this.$snapToItem) {
+                var pt = this.$owner.getSnappingPosition(-pos.x, -pos.y, ScrollPane.sHelperPoint);
+                if (pos.x < 0 && pos.x > -this.$overlapSize.x)
+                    pos.x = -pt.x;
+                if (pos.y < 0 && pos.y > -this.$overlapSize.y)
+                    pos.y = -pt.y;
+            }
+        };
+        ScrollPane.prototype.alignByPage = function (pos, axis, inertialScrolling) {
+            var page;
+            if (pos > 0)
+                page = 0;
+            else if (pos < -this.$overlapSize[axis])
+                page = Math.ceil(this.$contentSize[axis] / this.$pageSize[axis]) - 1;
+            else {
+                page = Math.floor(-pos / this.$pageSize[axis]);
+                var change = inertialScrolling ? (pos - this.$containerPos[axis]) : (pos - this.$container[axis]);
+                var testPageSize = Math.min(this.$pageSize[axis], this.$contentSize[axis] - (page + 1) * this.$pageSize[axis]);
+                var delta = -pos - page * this.$pageSize[axis];
+                //page mode magnetic
+                if (Math.abs(change) > this.$pageSize[axis]) {
+                    if (delta > testPageSize * 0.5)
+                        page++;
+                }
+                else {
+                    if (delta > testPageSize * (change < 0 ? 0.3 : 0.7))
+                        page++;
+                }
+                //re-calc dist
+                var dst = this.$pageSize[axis];
+                pos = -page * dst;
+                if (pos < -dst)
+                    pos = -dst;
+            }
+            if (inertialScrolling) {
+                var oldPos = this.$tweenStart[axis];
+                var oldPage;
+                if (oldPos > 0)
+                    oldPage = 0;
+                else if (oldPos < -this.$overlapSize[axis])
+                    oldPage = Math.ceil(this.$contentSize[axis] / this.$pageSize[axis]) - 1;
+                else
+                    oldPage = Math.floor(-oldPos / this.$pageSize[axis]);
+                var startPage = Math.floor(-this.$containerPos[axis] / this.$pageSize[axis]);
+                if (Math.abs(page - startPage) > 1 && Math.abs(oldPage - startPage) <= 1) {
+                    if (page > startPage)
+                        page = startPage + 1;
+                    else
+                        page = startPage - 1;
+                    pos = -page * this.$pageSize[axis];
+                }
+            }
+            return pos;
+        };
+        ScrollPane.prototype.updateTargetAndDuration = function (orignPos, resultPos) {
+            resultPos.x = this.updateTargetAndDuration2(orignPos.x, "x");
+            resultPos.y = this.updateTargetAndDuration2(orignPos.y, "y");
+        };
+        ScrollPane.prototype.updateTargetAndDuration2 = function (pos, axis) {
+            var v = this.$velocity[axis];
+            var duration = 0;
+            if (pos > 0)
+                pos = 0;
+            else if (pos < -this.$overlapSize[axis])
+                pos = -this.$overlapSize[axis];
+            else {
+                var v2 = Math.abs(v) * this.$velocityScale;
+                if (PIXI.utils.isMobile.any)
+                    v2 *= Math.max(fgui.GRoot.inst.stageWrapper.designWidth, fgui.GRoot.inst.stageWrapper.designHeight) / Math.max(fgui.GRoot.inst.stageWidth, fgui.GRoot.inst.stageHeight);
+                //threshold, if too slow, stop it
+                var ratio = 0;
+                if (this.$pageMode || !PIXI.utils.isMobile.any) {
+                    if (v2 > 500)
+                        ratio = Math.pow((v2 - 500) / 500, 2);
+                }
+                else {
+                    if (v2 > 1000)
+                        ratio = Math.pow((v2 - 1000) / 1000, 2);
+                }
+                if (ratio != 0) {
+                    if (ratio > 1)
+                        ratio = 1;
+                    v2 *= ratio;
+                    v *= ratio;
+                    this.$velocity[axis] = v;
+                    duration = Math.log(60 / v2) / Math.log(this.$decelerationRate) / 60;
+                    var change = (v / 60 - 1) / (1 - this.$decelerationRate);
+                    //const change: number = Math.floor(v * duration * 0.4);
+                    pos += change;
+                }
+            }
+            if (duration < ScrollPane.TWEEN_DEFAULT_DURATION)
+                duration = ScrollPane.TWEEN_DEFAULT_DURATION;
+            this.$tweenDuration[axis] = duration;
+            return pos;
+        };
+        ScrollPane.prototype.fixDuration = function (axis, oldChange) {
+            if (this.$tweenChange[axis] == 0 || Math.abs(this.$tweenChange[axis]) >= Math.abs(oldChange))
+                return;
+            var newDuration = Math.abs(this.$tweenChange[axis] / oldChange) * this.$tweenDuration[axis];
+            if (newDuration < ScrollPane.TWEEN_DEFAULT_DURATION)
+                newDuration = ScrollPane.TWEEN_DEFAULT_DURATION;
+            this.$tweenDuration[axis] = newDuration;
+        };
+        ScrollPane.prototype.killTween = function () {
+            //tweening == 1: set to end immediately
+            if (this.$tweening == 1) {
+                this.$container.position.set(this.$tweenStart.x + this.$tweenChange.x, this.$tweenStart.y + this.$tweenChange.y);
+                this.emit("__scroll" /* SCROLL */, this);
+                //Events.dispatch(Events.SCROLL, this.$owner.displayObject);
+            }
             this.$tweening = 0;
-            this.$tweener = null;
-            this.validateHolderPos();
-            this.syncScrollBar(true);
-            this.emit("__scroll" /* SCROLL */, this);
-        };
-        ScrollPane.prototype.$tweenUpdate2 = function () {
-            this.$throwTween.update(this.$container);
-            this.syncPos();
-            this.syncScrollBar();
-            this.emit("__scroll" /* SCROLL */, this);
-        };
-        ScrollPane.prototype.$tweenComplete2 = function () {
-            this.$tweening = 0;
-            this.$tweener = null;
-            this.validateHolderPos();
-            this.syncPos();
-            this.syncScrollBar(true);
-            this.emit("__scroll" /* SCROLL */, this);
+            fgui.GTimer.inst.remove(this.tweenUpdate, this);
             this.emit("__scrollEnd" /* SCROLL_END */, this);
+            //Events.dispatch(Events.SCROLLthis.$END, this.$owner.displayObject);
         };
+        ScrollPane.prototype.checkRefreshBar = function () {
+            if (this.$header == null && this.$footer == null)
+                return;
+            var pos = this.$container[this.$refreshBarAxis];
+            if (this.$header != null) {
+                if (pos > 0) {
+                    if (this.$header.displayObject.parent == null)
+                        this.$maskContainer.addChildAt(this.$header.displayObject, 0);
+                    var pt = ScrollPane.sHelperPoint;
+                    pt.set(this.$header.width, this.$header.height);
+                    pt[this.$refreshBarAxis] = pos;
+                    this.$header.setSize(pt.x, pt.y);
+                }
+                else {
+                    if (this.$header.displayObject.parent != null)
+                        this.$maskContainer.removeChild(this.$header.displayObject);
+                }
+            }
+            if (this.$footer != null) {
+                var max = this.$overlapSize[this.$refreshBarAxis];
+                if (pos < -max || max == 0 && this.$footerLockedSize > 0) {
+                    if (this.$footer.displayObject.parent == null)
+                        this.$maskContainer.addChildAt(this.$footer.displayObject, 0);
+                    var pt = ScrollPane.sHelperPoint;
+                    pt.set(this.$footer.x, this.$footer.y);
+                    if (max > 0)
+                        pt[this.$refreshBarAxis] = pos + this.$contentSize[this.$refreshBarAxis];
+                    else
+                        pt[this.$refreshBarAxis] = Math.max(Math.min(pos + this.$viewSize[this.$refreshBarAxis], this.$viewSize[this.$refreshBarAxis] - this.$footerLockedSize), this.$viewSize[this.$refreshBarAxis] - this.$contentSize[this.$refreshBarAxis]);
+                    this.$footer.setXY(pt.x, pt.y);
+                    pt.set(this.$footer.width, this.$footer.height);
+                    if (max > 0)
+                        pt[this.$refreshBarAxis] = -max - pos;
+                    else
+                        pt[this.$refreshBarAxis] = this.$viewSize[this.$refreshBarAxis] - this.$footer[this.$refreshBarAxis];
+                    this.$footer.setSize(pt.x, pt.y);
+                }
+                else {
+                    if (this.$footer.displayObject.parent != null)
+                        this.$maskContainer.removeChild(this.$footer.displayObject);
+                }
+            }
+        };
+        ScrollPane.prototype.tweenUpdate = function () {
+            var nx = this.runTween("x");
+            var ny = this.runTween("y");
+            this.$container.position.set(nx, ny);
+            if (this.$tweening == 2) {
+                if (this.$overlapSize.x > 0)
+                    this.$xPos = fgui.utils.NumberUtil.clamp(-nx, 0, this.$overlapSize.x);
+                if (this.$overlapSize.y > 0)
+                    this.$yPos = fgui.utils.NumberUtil.clamp(-ny, 0, this.$overlapSize.y);
+                if (this.$pageMode)
+                    this.updatePageController();
+            }
+            if (this.$tweenChange.x == 0 && this.$tweenChange.y == 0) {
+                this.$tweening = 0;
+                fgui.GTimer.inst.remove(this.tweenUpdate, this);
+                this.loopCheckingCurrent();
+                this.syncScrollBar(true);
+                this.checkRefreshBar();
+                this.emit("__scroll" /* SCROLL */, this);
+                this.emit("__scrollEnd" /* SCROLL_END */, this);
+                //Events.dispatch(Events.SCROLL, this.$owner.displayObject);
+                //Events.dispatch(Events.SCROLLthis.$END, this.$owner.displayObject);
+            }
+            else {
+                this.syncScrollBar(false);
+                this.checkRefreshBar();
+                this.emit("__scroll" /* SCROLL */, this);
+                //Events.dispatch(Events.SCROLL, this.$owner.displayObject);
+            }
+        };
+        ScrollPane.prototype.runTween = function (axis) {
+            var delta = fgui.GTimer.inst.ticker.deltaTime;
+            var newValue;
+            if (this.$tweenChange[axis] != 0) {
+                this.$tweenTime[axis] += delta * PIXI.settings.TARGET_FPMS;
+                if (this.$tweenTime[axis] >= this.$tweenDuration[axis]) {
+                    newValue = this.$tweenStart[axis] + this.$tweenChange[axis];
+                    this.$tweenChange[axis] = 0;
+                }
+                else {
+                    var ratio = ScrollPane.$easeTypeFunc(this.$tweenTime[axis], this.$tweenDuration[axis]);
+                    newValue = this.$tweenStart[axis] + Math.floor(this.$tweenChange[axis] * ratio);
+                }
+                var threshold1 = 0;
+                var threshold2 = -this.$overlapSize[axis];
+                if (this.$headerLockedSize > 0 && this.$refreshBarAxis == axis)
+                    threshold1 = this.$headerLockedSize;
+                if (this.$footerLockedSize > 0 && this.$refreshBarAxis == axis) {
+                    var max = this.$overlapSize[this.$refreshBarAxis];
+                    if (max == 0)
+                        max = Math.max(this.$contentSize[this.$refreshBarAxis] + this.$footerLockedSize - this.$viewSize[this.$refreshBarAxis], 0);
+                    else
+                        max += this.$footerLockedSize;
+                    threshold2 = -max;
+                }
+                if (this.$tweening == 2 && this.$bouncebackEffect) {
+                    if (newValue > 20 + threshold1 && this.$tweenChange[axis] > 0
+                        || newValue > threshold1 && this.$tweenChange[axis] == 0) {
+                        this.$tweenTime[axis] = 0;
+                        this.$tweenDuration[axis] = ScrollPane.TWEEN_DEFAULT_DURATION;
+                        this.$tweenChange[axis] = -newValue + threshold1;
+                        this.$tweenStart[axis] = newValue;
+                    }
+                    else if (newValue < threshold2 - 20 && this.$tweenChange[axis] < 0
+                        || newValue < threshold2 && this.$tweenChange[axis] == 0) {
+                        this.$tweenTime[axis] = 0;
+                        this.$tweenDuration[axis] = ScrollPane.TWEEN_DEFAULT_DURATION;
+                        this.$tweenChange[axis] = threshold2 - newValue;
+                        this.$tweenStart[axis] = newValue;
+                    }
+                }
+                else {
+                    if (newValue > threshold1) {
+                        newValue = threshold1;
+                        this.$tweenChange[axis] = 0;
+                    }
+                    else if (newValue < threshold2) {
+                        newValue = threshold2;
+                        this.$tweenChange[axis] = 0;
+                    }
+                }
+            }
+            else
+                newValue = this.$container[axis];
+            return newValue;
+        };
+        ScrollPane.$easeTypeFunc = function (t, d) { return (t = t / d - 1) * t * t + 1; }; //cubic out
         ScrollPane.$gestureFlag = 0;
-        ScrollPane.sHelperRect = new PIXI.Rectangle();
         ScrollPane.sHelperPoint = new PIXI.Point();
+        ScrollPane.sHelperRect = new PIXI.Rectangle();
+        ScrollPane.sEndPos = new PIXI.Point();
+        ScrollPane.sOldChange = new PIXI.Point();
+        ScrollPane.TWEEN_DEFAULT_DURATION = .4;
+        ScrollPane.TWEEN_MANUALLY_SET_DURATION = 0.5; //tween duration used when call setPos(useAni=true)
+        ScrollPane.PULL_DIST_RATIO = 0.5; //pulldown / pullup distance ratio of the whole viewport
         return ScrollPane;
     }(PIXI.utils.EventEmitter));
     fgui.ScrollPane = ScrollPane;
-    var ThrowTween = (function () {
-        function ThrowTween() {
-            this.start = new PIXI.Point();
-            this.change1 = new PIXI.Point();
-            this.change2 = new PIXI.Point();
-        }
-        ThrowTween.prototype.update = function (obj) {
-            obj.x = Math.floor(this.start.x + this.change1.x * this.value + this.change2.x * this.value * this.value);
-            obj.y = Math.floor(this.start.y + this.change1.y * this.value + this.change2.y * this.value * this.value);
-        };
-        ThrowTween.calculateChange = function (velocity, duration) {
-            return (duration * ThrowTween.checkpoint * velocity) / ThrowTween.easeOutCubic(ThrowTween.checkpoint, 0, 1, 1);
-        };
-        ThrowTween.easeOutCubic = function (t, b, c, d) {
-            return c * ((t = t / d - 1) * t * t + 1) + b;
-        };
-        ThrowTween.checkpoint = 0.05;
-        return ThrowTween;
-    }());
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
@@ -12309,14 +12955,14 @@ var fgui;
         UIConfig.modalLayerAlpha = 0.2;
         /** scrolling distance per action in pixel*/
         UIConfig.defaultScrollSpeed = 25;
-        /** dragging speed ratio for scrollPane.*/
-        UIConfig.defaultTouchScrollSpeedRatio = 1;
         /** default scrollbar display mode. It's recommended to set ScrollBarDisplayType.Visible for Desktop environment and ScrollBarDisplayType.Auto for mobile environment.*/
         UIConfig.defaultScrollBarDisplay = 1 /* Visible */;
         /** allow user to drag the content of a container. Set to true for mobile is recommended.*/
         UIConfig.defaultScrollTouchEffect = true;
         /** enable bounce effect when the scrolling reaches to the edge of a container. Set to true for mobile is recommended.*/
         UIConfig.defaultScrollBounceEffect = true;
+        /** Deceleration ratio of scrollpane when its in touch dragging.*/
+        UIConfig.defaultScrollDecelerationRate = .967;
         /** maximum count of items to be displayed in the visible viewport of the GCombobox.*/
         UIConfig.defaultComboBoxVisibleItemCount = 10;
         /** the finger moving threshold in pixel to trigger the scrolling action.*/
@@ -13023,7 +13669,7 @@ var fgui;
                 style.transform = style.webkitTransform = style.msTransform = style.mozTransform = style.oTransform = transform;
         };
         /**@internal */
-        HTMLInput.prototype.$updateSize = function (sx, sy) {
+        HTMLInput.prototype.updateSize = function (sx, sy) {
             if (!this.$canvas)
                 return;
             this.$scaleX = sx;
@@ -13264,9 +13910,9 @@ var fgui;
                     this.setElementStyle("height", (textheight + tf.leading) * this.$scaleY + "px");
                     var rap = (tf.height - textheight) * this.$scaleY;
                     var valign = this.getVAlignFactor(tf);
-                    var top_2 = rap * valign;
-                    var bottom = rap - top_2;
-                    this.setElementStyle("padding", top_2 + "px 0px " + bottom + "px 0px");
+                    var top_1 = rap * valign;
+                    var bottom = rap - top_1;
+                    this.setElementStyle("padding", top_1 + "px 0px " + bottom + "px 0px");
                     this.setElementStyle("lineHeight", tf.lineHeight * this.$scaleY + "px");
                 }
             }
@@ -13364,11 +14010,11 @@ var fgui;
                     else {
                         this.setElementStyle("height", textfield.fontSize * this.$scaleY + "px");
                         var rap = (textfield.height - textfield.fontSize) * this.$scaleY;
-                        var top_3 = rap * vao;
-                        var bottom = rap - top_3, fsy = textfield.fontSize * .5 * this.$scaleY;
+                        var top_2 = rap * vao;
+                        var bottom = rap - top_2, fsy = textfield.fontSize * .5 * this.$scaleY;
                         if (bottom < fsy)
                             bottom = fsy;
-                        this.setElementStyle("padding", top_3 + "px 0px " + bottom + "px 0px");
+                        this.setElementStyle("padding", top_2 + "px 0px " + bottom + "px 0px");
                     }
                 }
                 this.inputDiv.style.clip = "rect(0px " + (textfield.width * this.$scaleX) + "px " + (textfield.height * this.$scaleY) + "px 0px)";
@@ -13772,10 +14418,10 @@ var fgui;
                     this.tiledSlices = item.tiledSlices;
                 }
                 else
-                    this.$disp = new PIXI.Sprite(item.texture);
+                    this.$disp = new PIXI.extras.Sprite(item.id, item.texture);
             }
             else
-                this.$disp = new PIXI.Sprite();
+                this.$disp = new PIXI.extras.Sprite();
             this.addChild(this.$disp);
         };
         Object.defineProperty(UIImage.prototype, "tint", {
@@ -13864,6 +14510,30 @@ var fgui;
             enumerable: true,
             configurable: true
         });
+        Object.defineProperty(UIImage.prototype, "flipX", {
+            get: function () {
+                return this.$disp.flipX;
+            },
+            set: function (v) {
+                if (fgui.GRoot.inst.applicationContext.renderer.type != PIXI.RENDERER_TYPE.WEBGL)
+                    return;
+                this.$disp.flipX = v;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(UIImage.prototype, "flipY", {
+            get: function () {
+                return this.$disp.flipY;
+            },
+            set: function (v) {
+                if (fgui.GRoot.inst.applicationContext.renderer.type != PIXI.RENDERER_TYPE.WEBGL)
+                    return;
+                this.$disp.flipY = v;
+            },
+            enumerable: true,
+            configurable: true
+        });
         UIImage.prototype.destroy = function (options) {
             if (this.$disp) {
                 this.$disp.destroy(options);
@@ -13890,6 +14560,150 @@ var fgui;
     }(PIXI.Graphics));
     fgui.UISprite = UISprite;
 })(fgui || (fgui = {}));
+var fgui;
+(function (fgui) {
+    var utils;
+    (function (utils) {
+        var DOMEventManager = (function (_super) {
+            __extends(DOMEventManager, _super);
+            function DOMEventManager() {
+                var _this = _super.call(this) || this;
+                _this.retEvent = {};
+                _this.nullLowestDeltaTimeout = NaN;
+                /*******************keys*******************/
+                _this.$pressedKeys = {};
+                _this.$releasedKeys = {};
+                _this.$downKeys = [];
+                //resize
+                window.addEventListener("resize", function (e) { return _this.notifyResizeEvents(e); }, false);
+                //modifer keys
+                window.addEventListener('keydown', function (e) { return _this.onWindowKeyDown(e); }, false);
+                window.addEventListener('keyup', function (e) { return _this.onWindowKeyUp(e); }, false);
+                //mouse wheel
+                var toBind = ('onwheel' in document || document["documentMode"] >= 9) ?
+                    ['wheel'] : ['mousewheel', 'DomMouseScroll', 'MozMousePixelScroll'];
+                for (var i = toBind.length; i;) {
+                    window.addEventListener(toBind[--i], function (e) { return _this.onMouseWheel(e); }, false);
+                }
+                return _this;
+            }
+            //resize
+            DOMEventManager.prototype.notifyResizeEvents = function (e) {
+                this.emit('resize');
+            };
+            DOMEventManager.prototype.onMouseWheel = function (event) {
+                var _this = this;
+                var orgEvent = (event || window.event), delta = 0, deltaX = 0, deltaY = 0, absDelta = 0;
+                if ('detail' in orgEvent) {
+                    deltaY = orgEvent.detail * -1;
+                }
+                if ('wheelDelta' in orgEvent) {
+                    deltaY = orgEvent.wheelDelta;
+                }
+                if ('wheelDeltaY' in orgEvent) {
+                    deltaY = orgEvent.wheelDeltaY;
+                }
+                if ('wheelDeltaX' in orgEvent) {
+                    deltaX = orgEvent.wheelDeltaX * -1;
+                }
+                //FF DOMMouseScroll
+                if ('axis' in orgEvent && orgEvent.axis === orgEvent.HORIZONTAL_AXIS) {
+                    deltaX = deltaY * -1;
+                    deltaY = 0;
+                }
+                delta = deltaY === 0 ? deltaX : deltaY;
+                if ('deltaY' in orgEvent) {
+                    deltaY = orgEvent.deltaY * -1;
+                    delta = deltaY;
+                }
+                if ('deltaX' in orgEvent) {
+                    deltaX = orgEvent.deltaX;
+                    if (deltaY === 0) {
+                        delta = deltaX * -1;
+                    }
+                }
+                if (deltaY === 0 && deltaX === 0) {
+                    return;
+                }
+                // Delta modes:
+                //   * deltaMode 0 is by pixels, nothing to do
+                //   * deltaMode 1 is by lines
+                //   * deltaMode 2 is by pages
+                if (orgEvent.deltaMode === 1) {
+                    var lineHeight = 16; //fontSize - line-height;
+                    delta *= lineHeight;
+                    deltaY *= lineHeight;
+                    deltaX *= lineHeight;
+                }
+                else if (orgEvent.deltaMode === 2) {
+                    var pageHeight = 16; //dom.clientHeight = page-height
+                    delta *= pageHeight;
+                    deltaY *= pageHeight;
+                    deltaX *= pageHeight;
+                }
+                absDelta = Math.max(Math.abs(deltaY), Math.abs(deltaX));
+                if (!this.lowestDelta || absDelta < this.lowestDelta) {
+                    this.lowestDelta = absDelta;
+                    if (orgEvent.type === 'mousewheel' && absDelta % 120 === 0)
+                        this.lowestDelta /= 40;
+                }
+                if (orgEvent.type === 'mousewheel' && absDelta % 120 === 0) {
+                    delta /= 40;
+                    deltaX /= 40;
+                    deltaY /= 40;
+                }
+                delta = Math[delta >= 1 ? 'floor' : 'ceil'](delta / this.lowestDelta);
+                deltaX = Math[deltaX >= 1 ? 'floor' : 'ceil'](deltaX / this.lowestDelta);
+                deltaY = Math[deltaY >= 1 ? 'floor' : 'ceil'](deltaY / this.lowestDelta);
+                this.retEvent.delta = delta;
+                this.retEvent.deltaX = deltaX;
+                this.retEvent.deltaY = deltaY;
+                this.retEvent.deltaFactor = this.lowestDelta;
+                this.retEvent.deltaMode = 0;
+                if (this.nullLowestDeltaTimeout) {
+                    clearTimeout(this.nullLowestDeltaTimeout);
+                }
+                this.nullLowestDeltaTimeout = setTimeout(function () { return _this.nullLowestDelta(); }, 200);
+                this.emit("__mouseWheel" /* MOUSE_WHEEL */, this.retEvent);
+            };
+            DOMEventManager.prototype.nullLowestDelta = function () {
+                this.lowestDelta = null;
+            };
+            DOMEventManager.prototype.isKeyDown = function (key) {
+                return this.$downKeys.indexOf(key) >= 0;
+            };
+            DOMEventManager.prototype.isKeyPressed = function (key) {
+                return !!this.$pressedKeys[key];
+            };
+            DOMEventManager.prototype.isKeyReleased = function (key) {
+                return !!this.$releasedKeys[key];
+            };
+            DOMEventManager.prototype.onWindowKeyDown = function (evt) {
+                var key = evt.which || evt.keyCode;
+                if (!this.isKeyDown(key)) {
+                    this.$downKeys.push(key);
+                    this.$pressedKeys[key] = true;
+                    this.emit('keyPressed', key);
+                }
+            };
+            DOMEventManager.prototype.onWindowKeyUp = function (evt) {
+                var key = evt.which || evt.keyCode;
+                if (this.isKeyDown(key)) {
+                    this.$pressedKeys[key] = false;
+                    this.$releasedKeys[key] = true;
+                    var index = this.$downKeys.indexOf(key);
+                    if (index >= 0)
+                        this.$downKeys.splice(index, 1);
+                    this.emit('keyReleased', key);
+                }
+            };
+            DOMEventManager.inst = new DOMEventManager();
+            return DOMEventManager;
+        }(PIXI.utils.EventEmitter));
+        utils.DOMEventManager = DOMEventManager;
+    })(utils = fgui.utils || (fgui.utils = {}));
+})(fgui || (fgui = {}));
+/// <reference path="../utils/DOMEventManager.ts" />
 var fgui;
 (function (fgui) {
     var DefaultUIStageOptions = (function () {
@@ -13976,19 +14790,30 @@ var fgui;
             if (!opt.designWidth || !opt.designHeight)
                 throw new Error("Invalid designWidth / designHeight in the parameter 'stageOptions'.");
             _this.$options = opt;
+            _this.$appContext.view.style.position = "absolute";
             var container = _this.$appContext.view.parentElement;
+            var style = container.style;
+            //if parent is not a DIV box, make one
             if (container.tagName != "DIV") {
                 container = document.createElement("DIV");
+                style.position = "relative";
+                style.left = style.top = "0px";
+                style.width = style.height = "100%"; //and set default full-screen
+                style.overflow = "hidden";
                 _this.$appContext.view.parentElement.appendChild(container);
+                container.appendChild(_this.$appContext.view);
             }
-            var style = container.style;
-            style.position = "relative";
-            style.left = style.top = "0px";
-            style.width = style.height = "100%";
-            style.overflow = "hidden";
-            _this.$appContext.view.style.position = "absolute";
+            var containerPosition;
+            if (document.defaultView && document.defaultView.getComputedStyle)
+                containerPosition = document.defaultView.getComputedStyle(container).position;
+            else
+                containerPosition = style.position;
+            if (containerPosition == "" || containerPosition == "static") {
+                containerPosition = "relative";
+                container.style.position = containerPosition;
+            }
             fgui.HTMLInput.inst.initialize(container, _this.$appContext.view);
-            _this.$updateScreenSize();
+            _this.updateScreenSize();
             return _this;
         }
         Object.defineProperty(UIStage.prototype, "orientation", {
@@ -14032,7 +14857,7 @@ var fgui;
             },
             set: function (v) {
                 this.$options.resolution = v;
-                this.$updateScreenSize();
+                this.updateScreenSize();
             },
             enumerable: true,
             configurable: true
@@ -14051,11 +14876,25 @@ var fgui;
             enumerable: true,
             configurable: true
         });
+        Object.defineProperty(UIStage.prototype, "designWidth", {
+            get: function () {
+                return this.$options.designWidth;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(UIStage.prototype, "designHeight", {
+            get: function () {
+                return this.$options.designHeight;
+            },
+            enumerable: true,
+            configurable: true
+        });
         UIStage.prototype.setDesignSize = function (width, height) {
             var option = this.$options;
             option.designWidth = width;
             option.designHeight = height;
-            this.$updateScreenSize();
+            this.updateScreenSize();
         };
         UIStage.prototype.calculateStageSize = function (scaleMode, screenWidth, screenHeight, contentWidth, contentHeight) {
             var displayWidth = screenWidth;
@@ -14108,7 +14947,7 @@ var fgui;
             };
         };
         /**@internal */
-        UIStage.prototype.$updateScreenSize = function () {
+        UIStage.prototype.updateScreenSize = function () {
             if (fgui.HTMLInput.isTyping)
                 return;
             var canvas = this.$appContext.view;
@@ -14186,7 +15025,7 @@ var fgui;
             im.stageScaleX = this.$scaleX;
             im.stageScaleY = this.$scaleY;
             this.$appContext.renderer.resize(stageWidth, stageHeight);
-            fgui.HTMLInput.inst.$updateSize(displayWidth / stageWidth, displayHeight / stageHeight);
+            fgui.HTMLInput.inst.updateSize(displayWidth / stageWidth, displayHeight / stageHeight);
             this.emit("__sizeChanged" /* SIZE_CHANGED */, this);
         };
         UIStage.prototype.formatData = function (value) {
@@ -14214,158 +15053,56 @@ var fgui;
         UIStageInst.forEach(function (stage) {
             if (onSafari)
                 stage.offsetY = (document.body.clientHeight || document.documentElement.clientHeight) - window.innerHeight;
-            stage.$updateScreenSize();
+            stage.updateScreenSize();
         });
     }
-    window.addEventListener("resize", function () {
+    fgui.utils.DOMEventManager.inst.on('resize', function () {
         if (isNaN(resizeCheckTimer)) {
             resizeCheckTimer = window.setTimeout(resizeHandler, 300);
         }
     });
 })(fgui || (fgui = {}));
-/*this class is temporarily for the bug fixing purpose only, so once PIXI releases a new version, this class will be removed */
-var PIXI;
-(function (PIXI) {
-    var extras;
-    (function (extras) {
-        var Text = (function (_super) {
-            __extends(Text, _super);
-            function Text(text, style, canvas) {
-                var _this = _super.call(this, text, style, canvas) || this;
-                if (!PIXI.extras.Text.__init) {
-                    PIXI.extras.Text.__init = true;
-                    //override
-                    PIXI.TextMetrics.wordWrap = function (text, style) {
-                        var canvas = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : PIXI.TextMetrics["_canvas"];
-                        var context = canvas.getContext('2d');
-                        var line = '';
-                        var width = 0;
-                        var lines = '';
-                        var cache = {};
-                        var ls = style.letterSpacing;
-                        // ideally there is letterSpacing after every char except the last one
-                        // t_h_i_s_' '_i_s_' '_a_n_' '_e_x_a_m_p_l_e_' '_!
-                        // so for convenience the above needs to be compared to width + 1 extra space
-                        // t_h_i_s_' '_i_s_' '_a_n_' '_e_x_a_m_p_l_e_' '_!_
-                        // ________________________________________________
-                        // And then the final space is simply no appended to each line
-                        var wordWrapWidth = style.wordWrapWidth + style.letterSpacing;
-                        // get the width of a space and add it to cache
-                        var spaceWidth = PIXI.TextMetrics.getFromCache(' ', ls, cache, context);
-                        // break text into words
-                        var words = text.split(' ');
-                        for (var i = 0; i < words.length; i++) {
-                            var word = words[i];
-                            // get word width from cache if possible
-                            var wordWidth = PIXI.TextMetrics.getFromCache(word, ls, cache, context);
-                            // word is longer than desired bounds
-                            if (wordWidth > wordWrapWidth) {
-                                // break large word over multiple lines
-                                if (style.breakWords) {
-                                    // add a space to the start of the word unless its at the beginning of the line
-                                    var tmpWord = line.length > 0 ? ' ' + word : word;
-                                    // break word into characters
-                                    var characters = tmpWord.split('');
-                                    // loop the characters
-                                    for (var j = 0; j < characters.length; j++) {
-                                        var character = characters[j];
-                                        var nextChar = characters[j + 1];
-                                        var isEmoji = Text.isEmojiChar(character.charCodeAt(0), nextChar ? nextChar.charCodeAt(0) : 0);
-                                        if (isEmoji >= 1) {
-                                            j++;
-                                            character += nextChar; //combine into 1 emoji
-                                        }
-                                        var characterWidth = PIXI.TextMetrics.getFromCache(character, ls, cache, context);
-                                        if (characterWidth + width > wordWrapWidth) {
-                                            lines += PIXI.TextMetrics.addLine(line);
-                                            line = '';
-                                            width = 0;
-                                        }
-                                        line += character;
-                                        width += characterWidth;
-                                    }
-                                }
-                                else {
-                                    // if there are words in this line already
-                                    // finish that line and start a new one
-                                    if (line.length > 0) {
-                                        lines += PIXI.TextMetrics.addLine(line);
-                                        line = '';
-                                        width = 0;
-                                    }
-                                    // give it its own line
-                                    lines += PIXI.TextMetrics.addLine(word);
-                                    line = '';
-                                    width = 0;
-                                }
-                            }
-                            else {
-                                // word won't fit, start a new line
-                                if (wordWidth + width > wordWrapWidth) {
-                                    lines += PIXI.TextMetrics.addLine(line);
-                                    line = '';
-                                    width = 0;
-                                }
-                                // add the word to the current line
-                                if (line.length > 0) {
-                                    // add a space if it is not the beginning
-                                    line += ' ' + word;
-                                }
-                                else {
-                                    // add without a space if it is the beginning
-                                    line += word;
-                                }
-                                width += wordWidth + spaceWidth;
-                            }
-                        }
-                        lines += PIXI.TextMetrics.addLine(line, false);
-                        return lines;
-                    };
-                }
-                return _this;
-            }
-            /**
-             * Check whether a byte is an emoji character or not.
-             *
-             * @param {number} charCode - the byte to test.
-             * @param {number} nextCharCode - the possible second byte of the emoji.
-             * @return {number} 0 means not a emoji, 1 means single byte, 2 means double bytes.
-             */
-            Text.isEmojiChar = function (charCode, nextCharCode) {
-                var hs = charCode;
-                var nextCharValid = typeof nextCharCode === 'number' && !isNaN(nextCharCode) && nextCharCode > 0;
-                // surrogate pair
-                if (hs >= 0xd800 && hs <= 0xdbff) {
-                    if (nextCharValid) {
-                        var uc = ((hs - 0xd800) * 0x400) + (nextCharCode - 0xdc00) + 0x10000;
-                        if (uc >= 0x1d000 && uc <= 0x1f77f) {
-                            return 2;
-                        }
-                    }
-                }
-                else if ((hs >= 0x2100 && hs <= 0x27ff)
-                    || (hs >= 0x2B05 && hs <= 0x2b07)
-                    || (hs >= 0x2934 && hs <= 0x2935)
-                    || (hs >= 0x3297 && hs <= 0x3299)
-                    || hs === 0xa9 || hs === 0xae || hs === 0x303d || hs === 0x3030
-                    || hs === 0x2b55 || hs === 0x2b1c || hs === 0x2b1b
-                    || hs === 0x2b50 || hs === 0x231a) {
-                    return 1;
-                }
-                else if (nextCharValid && (nextCharCode === 0x20e3 || nextCharCode === 0xfe0f || nextCharCode === 0xd83c)) {
-                    return 2;
-                }
-                return 0;
-            };
-            Text.__init = false;
-            return Text;
-        }(PIXI.Text));
-        extras.Text = Text;
-    })(extras = PIXI.extras || (PIXI.extras = {}));
-})(PIXI || (PIXI = {}));
-///<reference path="../PIXI/extras/Text.ts" />
 var fgui;
 (function (fgui) {
+    var isEmojiChar = function (charCode, nextCharCode) {
+        var hs = charCode;
+        var nextCharValid = typeof nextCharCode === 'number' && !isNaN(nextCharCode) && nextCharCode > 0;
+        // surrogate pair
+        if (hs >= 0xd800 && hs <= 0xdbff) {
+            if (nextCharValid) {
+                var uc = ((hs - 0xd800) * 0x400) + (nextCharCode - 0xdc00) + 0x10000;
+                if (uc >= 0x1d000 && uc <= 0x1f77f) {
+                    return 2;
+                }
+            }
+        }
+        else if ((hs >= 0x2100 && hs <= 0x27ff)
+            || (hs >= 0x2B05 && hs <= 0x2b07)
+            || (hs >= 0x2934 && hs <= 0x2935)
+            || (hs >= 0x3297 && hs <= 0x3299)
+            || hs === 0xa9 || hs === 0xae || hs === 0x303d || hs === 0x3030
+            || hs === 0x2b55 || hs === 0x2b1c || hs === 0x2b1b
+            || hs === 0x2b50 || hs === 0x231a) {
+            return 1;
+        }
+        else if (nextCharValid && (nextCharCode === 0x20e3 || nextCharCode === 0xfe0f || nextCharCode === 0xd83c)) {
+            return 2;
+        }
+        return 0;
+    };
+    //override for emoji test
+    PIXI.TextMetrics.canBreakChars = function (char, nextChar, token, index, breakWords) {
+        if (isEmojiChar(char.charCodeAt(0), nextChar && nextChar.charCodeAt(0)) == 2)
+            return false;
+        return true;
+    };
+    PIXI.TextMetrics.isBreakingSpace = function (char) {
+        if (typeof char !== 'string')
+            return false;
+        if (char === ' ')
+            return false; //not break by this
+        return (PIXI.TextMetrics._breakingSpaces.indexOf(char.charCodeAt(0)) >= 0);
+    };
     var UITextField = (function (_super) {
         __extends(UITextField, _super);
         function UITextField(owner) {
@@ -14466,7 +15203,7 @@ var fgui;
             configurable: true
         });
         return UITextField;
-    }(PIXI.extras.Text));
+    }(PIXI.Text));
     fgui.UITextField = UITextField;
 })(fgui || (fgui = {}));
 var PIXI;
@@ -14527,19 +15264,17 @@ var PIXI;
         var NineSlicePlane = (function (_super) {
             __extends(NineSlicePlane, _super);
             function NineSlicePlane() {
-                return _super !== null && _super.apply(this, arguments) || this;
+                var _this = _super !== null && _super.apply(this, arguments) || this;
+                _this.$flipX = false;
+                _this.$flipY = false;
+                return _this;
             }
-            NineSlicePlane.prototype._refresh = function () {
-                if (isNaN(this._leftWidth) || isNaN(this._topHeight) || isNaN(this._rightWidth) || isNaN(this._bottomHeight))
-                    return; //call stack: super() -> Plane.refresh -> this._refresh() but now _leftWidth etc are undefined, so the calculations in this._refresh are useless.
-                _super.prototype._refresh.call(this);
-            };
             NineSlicePlane.prototype.updateHorizontalVertices = function () {
                 var vertices = this.vertices;
                 var h = this._topHeight + this._bottomHeight;
                 var scale = this._height > h ? 1.0 : this._height / h;
-                vertices[9] = vertices[11] = vertices[13] = vertices[15] = this._topHeight * scale;
-                vertices[17] = vertices[19] = vertices[21] = vertices[23] = this._height - this._bottomHeight * scale;
+                vertices[9] = vertices[11] = vertices[13] = vertices[15] = (this.$flipY ? this._bottomHeight : this._topHeight) * scale;
+                vertices[17] = vertices[19] = vertices[21] = vertices[23] = this._height - (this.$flipY ? this._topHeight : this._bottomHeight) * scale;
                 vertices[25] = vertices[27] = vertices[29] = vertices[31] = this._height;
             };
             ;
@@ -14547,14 +15282,218 @@ var PIXI;
                 var vertices = this.vertices;
                 var w = this._leftWidth + this._rightWidth;
                 var scale = this._width > w ? 1.0 : this._width / w;
-                vertices[2] = vertices[10] = vertices[18] = vertices[26] = this._leftWidth * scale;
-                vertices[4] = vertices[12] = vertices[20] = vertices[28] = this._width - this._rightWidth * scale;
+                vertices[2] = vertices[10] = vertices[18] = vertices[26] = (this.$flipX ? this._rightWidth : this._leftWidth) * scale;
+                vertices[4] = vertices[12] = vertices[20] = vertices[28] = this._width - (this.$flipX ? this._leftWidth : this._rightWidth) * scale;
                 vertices[6] = vertices[14] = vertices[22] = vertices[30] = this._width;
             };
             ;
+            NineSlicePlane.prototype._refresh = function () {
+                //call stack: super() -> Plane.refresh -> this._refresh() but now _leftWidth etc are undefined, so the calculations in this._refresh are useless.
+                if (isNaN(this._leftWidth) || isNaN(this._topHeight) || isNaN(this._rightWidth) || isNaN(this._bottomHeight))
+                    return;
+                _super.prototype._refresh.call(this);
+                var uvs = this.uvs;
+                if (this.$flipX) {
+                    var x0 = uvs[0];
+                    var x1 = uvs[2];
+                    uvs[0] = uvs[6];
+                    uvs[2] = uvs[4];
+                    uvs[6] = x0;
+                    uvs[4] = x1;
+                    x0 = uvs[8];
+                    x1 = uvs[10];
+                    uvs[8] = uvs[14];
+                    uvs[10] = uvs[12];
+                    uvs[14] = x0;
+                    uvs[12] = x1;
+                    x0 = uvs[16];
+                    x1 = uvs[18];
+                    uvs[16] = uvs[22];
+                    uvs[18] = uvs[20];
+                    uvs[22] = x0;
+                    uvs[20] = x1;
+                    x0 = uvs[24];
+                    x1 = uvs[26];
+                    uvs[24] = uvs[30];
+                    uvs[26] = uvs[28];
+                    uvs[30] = x0;
+                    uvs[28] = x1;
+                }
+                if (this.$flipY) {
+                    var y0 = uvs[1];
+                    var y1 = uvs[9];
+                    uvs[1] = uvs[25];
+                    uvs[9] = uvs[17];
+                    uvs[25] = y0;
+                    uvs[17] = y1;
+                    y0 = uvs[3];
+                    y1 = uvs[11];
+                    uvs[3] = uvs[27];
+                    uvs[11] = uvs[19];
+                    uvs[27] = y0;
+                    uvs[19] = y1;
+                    y0 = uvs[5];
+                    y1 = uvs[13];
+                    uvs[5] = uvs[29];
+                    uvs[13] = uvs[21];
+                    uvs[29] = y0;
+                    uvs[21] = y1;
+                    y0 = uvs[7];
+                    y1 = uvs[15];
+                    uvs[7] = uvs[31];
+                    uvs[15] = uvs[23];
+                    uvs[31] = y0;
+                    uvs[23] = y1;
+                }
+            };
+            Object.defineProperty(NineSlicePlane.prototype, "flipX", {
+                get: function () {
+                    return this.$flipX;
+                },
+                set: function (v) {
+                    if (this.$flipX != v) {
+                        this.$flipX = v;
+                        this._refresh();
+                    }
+                },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(NineSlicePlane.prototype, "flipY", {
+                get: function () {
+                    return this.$flipY;
+                },
+                set: function (v) {
+                    if (this.$flipY != v) {
+                        this.$flipY = v;
+                        this._refresh();
+                    }
+                },
+                enumerable: true,
+                configurable: true
+            });
             return NineSlicePlane;
         }(PIXI.mesh.NineSlicePlane));
         extras.NineSlicePlane = NineSlicePlane;
+    })(extras = PIXI.extras || (PIXI.extras = {}));
+})(PIXI || (PIXI = {}));
+var PIXI;
+(function (PIXI) {
+    var extras;
+    (function (extras) {
+        var Sprite = (function (_super) {
+            __extends(Sprite, _super);
+            function Sprite(frameId, tex) {
+                var _this = _super.call(this, tex) || this;
+                _this.$flipX = false;
+                _this.$flipY = false;
+                _this.$frameId = frameId;
+                return _this;
+            }
+            Object.defineProperty(Sprite.prototype, "flipX", {
+                get: function () {
+                    return this.$flipX;
+                },
+                set: function (v) {
+                    if (this.$flipX != v) {
+                        this.$flipX = v;
+                        fgui.GTimer.inst.callLater(this.updateUvs, this);
+                    }
+                },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(Sprite.prototype, "flipY", {
+                get: function () {
+                    return this.$flipY;
+                },
+                set: function (v) {
+                    if (this.$flipY != v) {
+                        this.$flipY = v;
+                        fgui.GTimer.inst.callLater(this.updateUvs, this);
+                    }
+                },
+                enumerable: true,
+                configurable: true
+            });
+            Sprite.prototype.combineCacheId = function (flipx, flipy) {
+                if (!this.$frameId || this.$frameId == "")
+                    return null;
+                return "" + this.$frameId + (flipx ? '_fx' : '') + (flipy ? '_fy' : '');
+            };
+            Sprite.prototype.getTextureFromCache = function (flipx, flipy) {
+                var cachedid = this.combineCacheId(flipx, flipy);
+                if (cachedid == null)
+                    return this._texture;
+                var ret = Sprite.$cachedTexturePool[cachedid];
+                if (!ret) {
+                    ret = {
+                        refCount: 1,
+                        texture: this.createFlippedTexture(this._texture, flipx, flipy)
+                    };
+                    Sprite.$cachedTexturePool[cachedid] = ret;
+                }
+                else
+                    ret.refCount++;
+                return ret.texture;
+            };
+            Sprite.prototype.tryRemoveTextureCache = function (flipx, flipy) {
+                var cachedid = this.combineCacheId(flipx, flipy);
+                if (!cachedid)
+                    return false;
+                var ret = Sprite.$cachedTexturePool[cachedid];
+                if (ret) {
+                    ret.refCount--;
+                    if (ret.refCount <= 0) {
+                        ret.texture.destroy();
+                        delete Sprite.$cachedTexturePool[cachedid];
+                    }
+                    return true;
+                }
+                return false;
+            };
+            Sprite.prototype.createFlippedTexture = function (origTexture, flipx, flipy) {
+                var newTex = origTexture.clone();
+                var uvs = newTex["_uvs"];
+                if (this.$flipX) {
+                    var tx0 = uvs.x0;
+                    var tx3 = uvs.x3;
+                    uvs.x0 = uvs.x1;
+                    uvs.x1 = tx0;
+                    uvs.x3 = uvs.x2;
+                    uvs.x2 = tx3;
+                }
+                if (this.$flipY) {
+                    var ty0 = uvs.y0;
+                    var ty1 = uvs.y1;
+                    uvs.y0 = uvs.y3;
+                    uvs.y3 = ty0;
+                    uvs.y1 = uvs.y2;
+                    uvs.y2 = ty1;
+                }
+                uvs.uvsUint32[0] = (uvs.y0 * 65535 & 0xFFFF) << 16 | uvs.x0 * 65535 & 0xFFFF;
+                uvs.uvsUint32[1] = (uvs.y1 * 65535 & 0xFFFF) << 16 | uvs.x1 * 65535 & 0xFFFF;
+                uvs.uvsUint32[2] = (uvs.y2 * 65535 & 0xFFFF) << 16 | uvs.x2 * 65535 & 0xFFFF;
+                uvs.uvsUint32[3] = (uvs.y3 * 65535 & 0xFFFF) << 16 | uvs.x3 * 65535 & 0xFFFF;
+                return newTex;
+            };
+            Sprite.prototype.updateUvs = function () {
+                if (!this._texture)
+                    return;
+                if (this.$flipX || this.$flipY) {
+                    var cachedTex = this.getTextureFromCache(this.$flipX, this.$flipY);
+                    if (this._texture != cachedTex)
+                        this._texture = cachedTex;
+                }
+            };
+            Sprite.prototype.destroy = function (options) {
+                this.tryRemoveTextureCache(this.$flipX, this.$flipY);
+                _super.prototype.destroy.call(this, options);
+            };
+            Sprite.$cachedTexturePool = {};
+            return Sprite;
+        }(PIXI.Sprite));
+        extras.Sprite = Sprite;
     })(extras = PIXI.extras || (PIXI.extras = {}));
 })(PIXI || (PIXI = {}));
 var fgui;
@@ -14827,13 +15766,11 @@ var fgui;
                     }
                     var cfg = new AtlasConfig(texID);
                     cfg.frame = new PIXI.Rectangle(parseInt(arr[2]), parseInt(arr[3]), parseInt(arr[4]), parseInt(arr[5]));
+                    cfg.rotate = arr[6] == "1" ? 6 : 0; //refer to PIXI.GroupD8, the editors rotate image by -90deg
+                    cfg.orig = cfg.rotate != 0 ? new PIXI.Rectangle(0, 0, cfg.frame.height, cfg.frame.width) : null;
                     /*
-                    //just ignored for now - editor not support
-                    let rotate:boolean = arr[6] == "1";
-                    let trimed:PIXI.Rectangle = ; //ignored for now - editor not support
-                    cfg.orig = orig;
-                    cfg.trim = trimed;
-                    cfg.rotate = rotate ? 2 : 0;*/
+                    cfg.trim = trimed;  //ignored for now - editor not support
+                    */
                     _this.$atlasConfigs[itemId] = cfg;
                 }
             });
@@ -15819,6 +16756,7 @@ var fgui;
         utils.ColorMatrix = ColorMatrix;
     })(utils = fgui.utils || (fgui.utils = {}));
 })(fgui || (fgui = {}));
+/// <reference path="../GRoot.ts" />
 var fgui;
 (function (fgui) {
     var utils;
@@ -15864,7 +16802,7 @@ var fgui;
                 this.$sourceData = sourceData;
                 this.$agent.url = icon;
                 fgui.GRoot.inst.addChild(this.$agent);
-                var pt = fgui.GRoot.inst.globalToLocal(fgui.GRoot.statusData.mouseX, fgui.GRoot.statusData.mouseY);
+                var pt = fgui.GRoot.inst.globalToLocal(fgui.GRoot.globalMouseStatus.mouseX, fgui.GRoot.globalMouseStatus.mouseY);
                 this.$agent.setXY(pt.x, pt.y);
                 this.$agent.startDrag(touchPointID);
             };
@@ -16134,6 +17072,9 @@ var fgui;
             };
             NumberUtil.angleToRadian = function (n) {
                 return n * NumberUtil.RADIAN;
+            };
+            NumberUtil.lerp = function (s, e, p) {
+                return s + p * (e - s);
             };
             NumberUtil.RADIAN = Math.PI / 180;
             return NumberUtil;

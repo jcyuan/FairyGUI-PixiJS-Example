@@ -1,4 +1,7 @@
 declare namespace fgui {
+    type IndexedObject = {
+        [key: string]: any;
+    };
     class InteractiveEvents {
         static Down: string;
         static Cancel: string;
@@ -91,6 +94,7 @@ declare namespace fgui {
         ScaleMatchHeight = 2,
         ScaleMatchWidth = 3,
         ScaleFree = 4,
+        ScaleNoBorder = 5,
     }
     const enum ListLayoutType {
         SingleColumn = 0,
@@ -120,6 +124,15 @@ declare namespace fgui {
         ValueAndMax = 1,
         Value = 2,
         Max = 3,
+    }
+    const enum Keys {
+        Up = 38,
+        Down = 40,
+        Left = 37,
+        Right = 39,
+        Shift = 16,
+        Alt = 18,
+        Ctrl = 17,
     }
     const enum FlipType {
         None = 0,
@@ -422,7 +435,7 @@ declare namespace fgui {
         mask: PIXI.Graphics | PIXI.Sprite;
         protected updateOpaque(): void;
         protected updateScrollRect(): void;
-        protected setupScroll(scrollBarMargin: utils.Margin, scroll: ScrollType, scrollBarDisplay: ScrollBarDisplayType, flags: number, vtScrollBarRes: string, hzScrollBarRes: string): void;
+        protected setupScroll(scrollBarMargin: utils.Margin, scroll: ScrollType, scrollBarDisplay: ScrollBarDisplayType, flags: number, vtScrollBarRes: string, hzScrollBarRes: string, headerRes: string, footerRes: string): void;
         protected setupOverflow(overflow: OverflowType): void;
         protected handleSizeChanged(): void;
         protected handleGrayedChanged(): void;
@@ -750,6 +763,7 @@ declare namespace fgui {
         private $align;
         private $verticalAlign;
         private $selectionController;
+        private $lastSelectedIndex;
         private $pool;
         private $virtual;
         private $loop;
@@ -764,6 +778,9 @@ declare namespace fgui {
         private $eventLocked;
         protected $apexIndex: number;
         private $childrenRenderOrder;
+        private $itemInfoVer;
+        private $enterCounter;
+        private static $lastPosHelper;
         constructor();
         childrenRenderOrder: ListChildrenRenderOrder;
         apexIndex: number;
@@ -795,57 +812,51 @@ declare namespace fgui {
         addItem(url?: string): GObject;
         addItemFromPool(url?: string): GObject;
         removeChildAt(index: number, dispose?: boolean): GObject;
-        removeChildToPoolAt(index?: number): void;
+        removeChildToPoolAt(index: number): void;
         removeChildToPool(child: GObject): void;
         removeChildrenToPool(beginIndex?: number, endIndex?: number): void;
         selectedIndex: number;
-        getSelection(): Array<number>;
-        addSelection(index: number, scrollItToView?: boolean): void;
-        removeSelection(index?: number): void;
+        getSelection(): number[];
+        addSelection(index: number, scrollIntoView?: boolean): void;
+        removeSelection(index: number): void;
         clearSelection(): void;
+        private clearSelectionExcept(g);
         selectAll(): void;
         selectNone(): void;
         selectReverse(): void;
-        handleArrowKey(dir?: number): void;
+        handleArrowKey(key: Keys): void;
         private $clickItem(evt);
-        private setSelectionOnEvent(item);
-        private clearSelectionExcept(obj);
+        private setSelectionOnEvent(button);
         resizeToFit(itemCount?: number, minSize?: number): void;
         getMaxItemWidth(): number;
         protected handleSizeChanged(): void;
         handleControllerChanged(c: controller.Controller): void;
         private updateSelectionController(index);
         getSnappingPosition(xValue: number, yValue: number, resultPoint?: PIXI.Point): PIXI.Point;
-        scrollToView(index: number, ani?: boolean, setFirst?: boolean): void;
+        scrollToView(index: number, ani?: boolean, snapToFirst?: boolean): void;
         getFirstChildInView(): number;
         childIndexToItemIndex(index: number): number;
         itemIndexToChildIndex(index: number): number;
         setVirtual(): void;
-        /**set as virtual list with loop mode */
         setVirtualAndLoop(): void;
         private $setVirtual(loop);
-        /**
-         * set item count for the list.
-         * 1, if the list is a normal list (not virtual), the set number of items will be created inside the list.
-         * 2, if the list is a virtual list, only count of visible items will be created inside the list's viewport.
-         */
         numItems: number;
         refreshVirtualList(): void;
         private checkVirtualList();
         private setVirtualListChangedFlag(layoutChanged?);
-        private _refreshVirtualList();
-        private $scrolled(evt);
+        private $refreshVirtualList();
+        private $scrolled();
         private getIndexOnPos1(forceUpdate);
         private getIndexOnPos2(forceUpdate);
         private getIndexOnPos3(forceUpdate);
         private handleScroll(forceUpdate);
-        private static itemInfoReuseFlag;
-        private static scrollEnterCounter;
-        private static posHelper;
         private handleScroll1(forceUpdate);
         private handleScroll2(forceUpdate);
         private handleScroll3(forceUpdate);
+        private handleArchOrder1();
+        private handleArchOrder2();
         private handleAlign(contentWidth, contentHeight);
+        /**@override */
         protected updateBounds(): void;
         setupBeforeAdd(xml: utils.XmlNode): void;
         setupAfterAdd(xml: utils.XmlNode): void;
@@ -982,7 +993,7 @@ declare namespace fgui {
         value: number;
         tweenValue(value: number, duration: number): createjs.Tween;
         private onUpdateTween();
-        update(newValue: number): void;
+        update(val: number): void;
         protected constructFromXML(xml: utils.XmlNode): void;
         protected handleSizeChanged(): void;
         setupAfterAdd(xml: utils.XmlNode): void;
@@ -1089,7 +1100,7 @@ declare namespace fgui {
     }
 }
 declare namespace fgui {
-    class GRootPointerStatus {
+    class GRootMouseStatus {
         touchDown: boolean;
         mouseX: number;
         mouseY: number;
@@ -1107,25 +1118,15 @@ declare namespace fgui {
         private $checkingPopups;
         private $uid;
         private static $inst;
-        private static $retStatus;
+        private static $gmStatus;
         /**
          * the singleton instance of the GRoot object
          */
         static readonly inst: GRoot;
         /**
-         * @deprecated will be removed later, please use pointerStatusData instead
-         */
-        static readonly statusData: GRootPointerStatus;
-        /**
          * the current mouse/pointer data
          */
-        static readonly pointerStatusData: GRootPointerStatus;
-        /**
-         * get the objects which are placed underneath the given stage coordinate
-         * @param globalX the stage X
-         * @param globalY the stage Y
-         */
-        getObjectUnderPoint(globalX: number, globalY: number): GObject;
+        static readonly globalMouseStatus: GRootMouseStatus;
         /**
          * the main entry to lauch the UI root, e.g.: GRoot.inst.attachTo(app, options)
          * @param app your PIXI.Application instance to be used in this GRoot instance
@@ -1139,6 +1140,15 @@ declare namespace fgui {
         readonly contentScaleFactor: number;
         readonly applicationContext: PIXI.Application;
         readonly nativeStage: PIXI.Container;
+        readonly orientation: StageOrientation;
+        readonly stageWrapper: UIStage;
+        protected dispatchMouseWheel(evt: any): void;
+        /**
+         * get the objects which are placed underneath the given stage coordinate
+         * @param globalX the stage X
+         * @param globalY the stage Y
+         */
+        getObjectUnderPoint(globalX: number, globalY: number): GObject;
         showWindow(win: Window): void;
         hideWindow(win: Window): void;
         hideWindowImmediately(win: Window): void;
@@ -1266,16 +1276,20 @@ declare namespace fgui {
         private $itemPool;
         private $enumIdx;
         private $enumCount;
+        private $curTime;
         private $ticker;
         static inst: GTimer;
         constructor();
         private getItem();
         private findItem(callback, thisObj);
         add(delayInMs: number, repeat: number, callback: (...args: any[]) => void, thisObj: any, callbackParam?: any): void;
+        addLoop(delayInMs: number, callback: (...args: any[]) => void, thisObj: any, callbackParam?: any): void;
         callLater(callback: (...args: any[]) => void, thisObj: any, callbackParam?: any): void;
         callDelay(delayInMs: number, callback: (...args: any[]) => void, thisObj: any, callbackParam?: any): void;
         exists(callback: (...args: any[]) => void, thisObj: any): boolean;
         remove(callback: (...args: any[]) => void, thisObj: any): void;
+        readonly ticker: PIXI.ticker.Ticker;
+        readonly curTime: number;
         advance(): void;
         tickTween(): void;
         setTicker(ticker: PIXI.ticker.Ticker): void;
@@ -1383,67 +1397,82 @@ declare namespace fgui {
     }
 }
 declare namespace fgui {
-    /**@final */
     class ScrollPane extends PIXI.utils.EventEmitter {
+        private static $easeTypeFunc;
         private $owner;
         private $maskContainer;
         private $container;
-        private $viewWidth;
-        private $viewHeight;
-        private $contentWidth;
-        private $contentHeight;
+        private $alignContainer;
         private $scrollType;
         private $scrollSpeed;
+        private $mouseWheelSpeed;
+        private $decelerationRate;
         private $scrollBarMargin;
         private $bouncebackEffect;
         private $touchEffect;
         private $scrollBarDisplayAuto;
         private $vScrollNone;
         private $hScrollNone;
+        private $needRefresh;
+        private $refreshBarAxis;
         private $displayOnLeft;
         private $snapToItem;
         private $displayOnDemand;
+        private $mouseWheelEnabled;
         private $pageMode;
-        private $pageSizeH;
-        private $pageSizeV;
         private $inertiaDisabled;
-        private $yPerc;
-        private $xPerc;
         private $xPos;
         private $yPos;
-        private $xOverlap;
-        private $yOverlap;
-        private static $easeTypeFunc;
-        private $throwTween;
-        private $tweening;
-        private $tweener;
-        private $time1;
-        private $time2;
-        private $y1;
-        private $y2;
-        private $xOffset;
-        private $yOffset;
-        private $x1;
-        private $x2;
-        private $needRefresh;
-        private $holdAreaPoint;
+        private $viewSize;
+        private $contentSize;
+        private $overlapSize;
+        private $pageSize;
+        private $containerPos;
+        private $beginTouchPos;
+        private $lastTouchPos;
+        private $lastTouchGlobalPos;
+        private $velocity;
+        private $velocityScale;
+        private $lastMoveTime;
         private $isHoldAreaDone;
         private $aniFlag;
         private $scrollBarVisible;
+        private $headerLockedSize;
+        private $footerLockedSize;
+        private $refreshEventDispatching;
+        private $tweening;
+        private $tweenTime;
+        private $tweenDuration;
+        private $tweenStart;
+        private $tweenChange;
+        private $pageController;
         private $hzScrollBar;
         private $vtScrollBar;
-        private $onStage;
+        private $header;
+        private $footer;
+        private $isDragging;
         static draggingPane: ScrollPane;
         private static $gestureFlag;
+        private static sHelperPoint;
         private static sHelperRect;
-        constructor(owner: GComponent, scrollType: number, scrollBarMargin: utils.Margin, scrollBarDisplay: number, flags: number, vtScrollBarRes: string, hzScrollBarRes: string);
-        private $ownerAdded(e);
-        private $ownerRemoved(e);
+        private static sEndPos;
+        private static sOldChange;
+        static TWEEN_DEFAULT_DURATION: number;
+        static TWEEN_MANUALLY_SET_DURATION: number;
+        static PULL_DIST_RATIO: number;
+        constructor(owner: GComponent, scrollType: number, scrollBarMargin: utils.Margin, scrollBarDisplay: number, flags: number, vtScrollBarRes: string, hzScrollBarRes: string, headerRes: string, footerRes: string);
+        dispose(): void;
         readonly owner: GComponent;
+        readonly horzScrollBar: GScrollBar;
+        readonly vertScrollBar: GScrollBar;
+        readonly header: GComponent;
+        readonly footer: GComponent;
         bouncebackEffect: boolean;
         touchEffect: boolean;
         scrollSpeed: number;
         snapToItem: boolean;
+        mouseWheelEnabled: boolean;
+        decelerationRate: number;
         percX: number;
         setPercX(value: number, ani?: boolean): void;
         percY: number;
@@ -1452,54 +1481,60 @@ declare namespace fgui {
         setPosX(value: number, ani?: boolean): void;
         posY: number;
         setPosY(value: number, ani?: boolean): void;
-        readonly isBottomMost: boolean;
-        readonly isRightMost: boolean;
-        currentPageX: number;
-        currentPageY: number;
-        readonly scrollingPosX: number;
-        readonly scrollingPosY: number;
         readonly contentWidth: number;
         readonly contentHeight: number;
         viewWidth: number;
         viewHeight: number;
-        private getDeltaX(move);
-        private getDeltaY(move);
+        currentPageX: number;
+        currentPageY: number;
+        readonly isBottomMost: boolean;
+        readonly isRightMost: boolean;
+        pageController: controller.Controller;
+        readonly scrollingPosX: number;
+        readonly scrollingPosY: number;
         scrollTop(ani?: boolean): void;
         scrollBottom(ani?: boolean): void;
-        scrollUp(speed?: number, ani?: boolean): void;
-        scrollDown(speed?: number, ani?: boolean): void;
-        scrollLeft(speed?: number, ani?: boolean): void;
-        scrollRight(speed?: number, ani?: boolean): void;
-        scrollToView(target: GObject | PIXI.Rectangle, ani?: boolean, setFirst?: boolean): void;
+        scrollUp(ratio?: number, ani?: boolean): void;
+        scrollDown(ratio?: number, ani?: boolean): void;
+        scrollLeft(ratio?: number, ani?: boolean): void;
+        scrollRight(ratio?: number, ani?: boolean): void;
+        scrollToView(target: Object, ani?: boolean, snapToFirst?: boolean): void;
         isChildInView(obj: GObject): boolean;
         cancelDragging(): void;
-        onOwnerSizeChanged(): void;
-        adjustMaskContainer(): void;
-        setSize(aWidth: number, aHeight: number): void;
-        setContentSize(aWidth: number, aHeight: number): void;
-        changeContentSizeOnScrolling(deltaWidth: number, deltaHeight: number, deltaPosX: number, deltaPosY: number): void;
+        readonly isDragging: boolean;
+        lockHeader(size: number): void;
+        lockFooter(size: number): void;
+        private updatePageController();
+        setSize(width: number, height: number): void;
+        setContentSize(w: number, h: number): void;
         private handleSizeChanged(onScrolling?);
-        private validateHolderPos();
         private posChanged(ani);
-        private killTween();
         private refresh();
         private refresh2();
-        private syncPos();
         private syncScrollBar(end?);
-        private static sHelperPoint;
-        private $mouseDown(evt);
-        private $touchMove(evt);
-        private $touchEnd(evt);
-        private $touchTap(evt);
-        private $rollOver(evt);
-        private $rollOut(evt);
-        dispose(): void;
-        private showScrollBar(val);
-        private setScrollBarVisible(val);
-        private $tweenUpdate();
-        private $tweenComplete();
-        private $tweenUpdate2();
-        private $tweenComplete2();
+        private $mouseDown(e);
+        private $mouseMove();
+        private $mouseUp();
+        private $click();
+        private $mouseWheel(evt);
+        private $rollOver();
+        private $rollOut();
+        private showScrollBar(visible);
+        private setScrollBarVisible(visible);
+        private getLoopPartSize(division, axis);
+        private loopCheckingCurrent();
+        private loopCheckingTarget(endPos);
+        private loopCheckingTarget2(endPos, axis);
+        private loopCheckingNewPos(value, axis);
+        private alignPosition(pos, inertialScrolling);
+        private alignByPage(pos, axis, inertialScrolling);
+        private updateTargetAndDuration(orignPos, resultPos);
+        private updateTargetAndDuration2(pos, axis);
+        private fixDuration(axis, oldChange);
+        private killTween();
+        private checkRefreshBar();
+        private tweenUpdate();
+        private runTween(axis);
     }
 }
 declare namespace fgui {
@@ -1670,14 +1705,14 @@ declare namespace fgui {
         static verticalScrollBar: string;
         /** scrolling distance per action in pixel*/
         static defaultScrollSpeed: number;
-        /** dragging speed ratio for scrollPane.*/
-        static defaultTouchScrollSpeedRatio: number;
         /** default scrollbar display mode. It's recommended to set ScrollBarDisplayType.Visible for Desktop environment and ScrollBarDisplayType.Auto for mobile environment.*/
         static defaultScrollBarDisplay: number;
         /** allow user to drag the content of a container. Set to true for mobile is recommended.*/
         static defaultScrollTouchEffect: boolean;
         /** enable bounce effect when the scrolling reaches to the edge of a container. Set to true for mobile is recommended.*/
         static defaultScrollBounceEffect: boolean;
+        /** Deceleration ratio of scrollpane when its in touch dragging.*/
+        static defaultScrollDecelerationRate: number;
         /** global PopupMenu name.*/
         static popupMenu: string;
         /** seperator resource name to be created to seperate each items on the global PopupMenu.*/
@@ -1704,7 +1739,7 @@ declare namespace fgui.controller {
         execute(controller: Controller, prevPage: string, curPage: string): void;
         protected enter(controller: Controller): void;
         protected leave(controller: Controller): void;
-        setup(xml: fgui.utils.XmlNode): void;
+        setup(xml: utils.XmlNode): void;
     }
 }
 declare namespace fgui.controller {
@@ -1713,7 +1748,7 @@ declare namespace fgui.controller {
         controllerName: string;
         targetPage: string;
         protected enter(controller: Controller): void;
-        setup(xml: fgui.utils.XmlNode): void;
+        setup(xml: utils.XmlNode): void;
     }
 }
 declare namespace fgui.controller {
@@ -1990,8 +2025,8 @@ declare namespace fgui {
 }
 declare namespace fgui {
     class UIImage extends PIXI.Container implements IUIObject {
-        protected $disp: PIXI.extras.TilingSprite | PIXI.mesh.NineSlicePlane | PIXI.Sprite;
         UIOwner: GObject;
+        protected $disp: PIXI.extras.TilingSprite | PIXI.extras.NineSlicePlane | PIXI.extras.Sprite;
         constructor(owner?: GObject);
         tint: number;
         height: number;
@@ -2005,6 +2040,8 @@ declare namespace fgui {
          */
         scale9Grid: PIXI.Rectangle;
         tiledSlices: number;
+        flipX: boolean;
+        flipY: boolean;
         destroy(options?: boolean | PIXI.DestroyOptions): void;
     }
 }
@@ -2012,6 +2049,27 @@ declare namespace fgui {
     class UISprite extends PIXI.Graphics implements IUIObject {
         UIOwner: GObject;
         constructor(owner?: GObject);
+    }
+}
+declare namespace fgui.utils {
+    class DOMEventManager extends PIXI.utils.EventEmitter {
+        static inst: DOMEventManager;
+        constructor();
+        private notifyResizeEvents(e);
+        private onMouseWheel(event);
+        private retEvent;
+        private lowestDelta;
+        private nullLowestDeltaTimeout;
+        private nullLowestDelta();
+        /*******************keys*******************/
+        private $pressedKeys;
+        private $releasedKeys;
+        private $downKeys;
+        isKeyDown(key: number): boolean;
+        isKeyPressed(key: number): boolean;
+        isKeyReleased(key: number): boolean;
+        private onWindowKeyDown(evt);
+        private onWindowKeyUp(evt);
     }
 }
 declare namespace fgui {
@@ -2074,7 +2132,7 @@ declare namespace fgui {
         offsetY: number;
         private $sizeCalcer;
         constructor(app: PIXI.Application, stageOptions?: UIStageOptions);
-        readonly orientation: string;
+        readonly orientation: StageOrientation;
         readonly stageWidth: number;
         readonly stageHeight: number;
         readonly applicationContext: PIXI.Application;
@@ -2082,6 +2140,8 @@ declare namespace fgui {
         resolution: number;
         readonly scaleX: number;
         readonly scaleY: number;
+        readonly designWidth: number;
+        readonly designHeight: number;
         setDesignSize(width: number, height: number): void;
         protected calculateStageSize(scaleMode: string, screenWidth: number, screenHeight: number, contentWidth: number, contentHeight: number): {
             stageWidth: number;
@@ -2093,22 +2153,8 @@ declare namespace fgui {
         dispose(): void;
     }
 }
-declare namespace PIXI.extras {
-    class Text extends PIXI.Text {
-        private static __init;
-        /**
-         * Check whether a byte is an emoji character or not.
-         *
-         * @param {number} charCode - the byte to test.
-         * @param {number} nextCharCode - the possible second byte of the emoji.
-         * @return {number} 0 means not a emoji, 1 means single byte, 2 means double bytes.
-         */
-        static isEmojiChar(charCode: number, nextCharCode: number): number;
-        constructor(text?: string, style?: PIXI.TextStyle, canvas?: HTMLCanvasElement);
-    }
-}
 declare namespace fgui {
-    class UITextField extends PIXI.extras.Text implements IUIObject {
+    class UITextField extends PIXI.Text implements IUIObject {
         UIOwner: GObject;
         protected $minHeight: number;
         protected $minHeightID: number;
@@ -2129,6 +2175,7 @@ declare namespace fgui {
         SIZE_CHANGED = "__sizeChanged",
         VISIBLE_CHANGED = "__visibleChanged",
         SIZE_DELAY_CHANGE = "__sizeDelayChange",
+        MOUSE_WHEEL = "__mouseWheel",
     }
 }
 declare namespace fgui {
@@ -2186,9 +2233,35 @@ declare namespace PIXI.extras {
 }
 declare namespace PIXI.extras {
     class NineSlicePlane extends PIXI.mesh.NineSlicePlane {
-        protected _refresh(): void;
+        protected $flipX: boolean;
+        protected $flipY: boolean;
         updateHorizontalVertices(): void;
         updateVerticalVertices(): void;
+        protected _refresh(): void;
+        flipX: boolean;
+        flipY: boolean;
+    }
+}
+declare namespace PIXI.extras {
+    class Sprite extends PIXI.Sprite {
+        protected $flipX: boolean;
+        protected $flipY: boolean;
+        protected $frameId: string;
+        protected static $cachedTexturePool: {
+            [key: string]: {
+                refCount: number;
+                texture: PIXI.Texture;
+            };
+        };
+        constructor(frameId?: string, tex?: PIXI.Texture);
+        flipX: boolean;
+        flipY: boolean;
+        private combineCacheId(flipx, flipy);
+        private getTextureFromCache(flipx, flipy);
+        private tryRemoveTextureCache(flipx, flipy);
+        private createFlippedTexture(origTexture, flipx, flipy);
+        private updateUvs();
+        destroy(options?: DestroyOptions | boolean): void;
     }
 }
 declare namespace fgui {
@@ -2542,6 +2615,7 @@ declare namespace fgui.utils {
         static isNumber(n: any): n is number;
         static sign(x: number): number;
         static angleToRadian(n: number): number;
+        static lerp(s: number, e: number, p: number): number;
     }
 }
 declare namespace fgui.utils {
