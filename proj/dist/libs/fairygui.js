@@ -14,7 +14,7 @@ var fgui;
     var win = window;
     var hasPointer = !!(win.PointerEvent || win.MSPointerEvent);
     var hasTouch = 'ontouchstart' in window && PIXI.utils.isMobile.any;
-    var InteractiveEvents = (function () {
+    var InteractiveEvents = /** @class */ (function () {
         function InteractiveEvents() {
         }
         InteractiveEvents.Down = hasPointer ? "pointerdown" : hasTouch ? "touchstart" : "mousedown";
@@ -336,7 +336,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var GObject = (function () {
+    var GObject = /** @class */ (function () {
         function GObject() {
             this.$x = 0;
             this.$y = 0;
@@ -1495,7 +1495,7 @@ var fgui;
             GObject.$dragBeginCancelled = false;
             evt.currentTarget = this.$displayObject;
             this.$displayObject.emit("__dragStart" /* START */, evt, this);
-            if (!GObject.$dragBeginCancelled)
+            if (!GObject.$dragBeginCancelled) //user may call obj.stopDrag in the DragStart event handler
                 this.dragBegin();
         };
         GObject.prototype.$moving2 = function (evt) {
@@ -1548,7 +1548,7 @@ var fgui;
 /// <reference path="./GObject.ts" />
 var fgui;
 (function (fgui) {
-    var GComponent = (function (_super) {
+    var GComponent = /** @class */ (function (_super) {
         __extends(GComponent, _super);
         function GComponent() {
             var _this = _super.call(this) || this;
@@ -1712,7 +1712,7 @@ var fgui;
             var oldIndex = this.$children.indexOf(child);
             if (oldIndex == -1)
                 throw new Error("no such child found");
-            if (child.sortingOrder != 0)
+            if (child.sortingOrder != 0) //no effect
                 return;
             var cnt = this.$children.length;
             if (this.$sortingChildCount > 0) {
@@ -1725,7 +1725,7 @@ var fgui;
             var oldIndex = this.$children.indexOf(child);
             if (oldIndex == -1)
                 throw new Error("no such child found");
-            if (child.sortingOrder != 0)
+            if (child.sortingOrder != 0) //no effect
                 return oldIndex;
             var cnt = this.$children.length;
             if (this.$sortingChildCount > 0) {
@@ -2143,9 +2143,9 @@ var fgui;
                         }
                         else {
                             prev = this.$children[i - 1];
-                            if (yValue < prev.y + prev.actualHeight / 2)
+                            if (yValue < prev.y + prev.actualHeight / 2) //top half part
                                 yValue = prev.y;
-                            else
+                            else //bottom half part
                                 yValue = obj.y;
                             break;
                         }
@@ -2166,9 +2166,9 @@ var fgui;
                         }
                         else {
                             prev = this.$children[i - 1];
-                            if (xValue < prev.x + prev.actualWidth / 2)
+                            if (xValue < prev.x + prev.actualWidth / 2) //top half part
                                 xValue = prev.x;
-                            else
+                            else //bottom half part
                                 xValue = obj.x;
                             break;
                         }
@@ -2360,7 +2360,7 @@ var fgui;
 /// <reference path="./GComponent.ts" />
 var fgui;
 (function (fgui) {
-    var GButton = (function (_super) {
+    var GButton = /** @class */ (function (_super) {
         __extends(GButton, _super);
         function GButton() {
             var _this = _super.call(this) || this;
@@ -2765,7 +2765,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var GComboBox = (function (_super) {
+    var GComboBox = /** @class */ (function (_super) {
         __extends(GComboBox, _super);
         function GComboBox() {
             var _this = _super.call(this) || this;
@@ -3099,681 +3099,10 @@ var fgui;
     }(fgui.GComponent));
     fgui.GComboBox = GComboBox;
 })(fgui || (fgui = {}));
-var fgui;
-(function (fgui) {
-    var GearBase = (function () {
-        function GearBase(owner) {
-            this.$lockToken = 0;
-            this.$owner = owner;
-            this.$easeType = fgui.ParseEaseType("Quad.Out");
-            this.$tweenTime = 0.3;
-            this.$tweenDelay = 0;
-        }
-        Object.defineProperty(GearBase.prototype, "controller", {
-            get: function () {
-                return this.$controller;
-            },
-            set: function (val) {
-                if (val != this.$controller) {
-                    this.$controller = val;
-                    if (this.$controller)
-                        this.init();
-                }
-            },
-            enumerable: true,
-            configurable: true
-        });
-        Object.defineProperty(GearBase.prototype, "tween", {
-            get: function () {
-                return this.$tween;
-            },
-            set: function (val) {
-                this.$tween = val;
-            },
-            enumerable: true,
-            configurable: true
-        });
-        Object.defineProperty(GearBase.prototype, "tweenDelay", {
-            get: function () {
-                return this.$tweenDelay;
-            },
-            set: function (val) {
-                this.$tweenDelay = val;
-            },
-            enumerable: true,
-            configurable: true
-        });
-        Object.defineProperty(GearBase.prototype, "tweenTime", {
-            get: function () {
-                return this.$tweenTime;
-            },
-            set: function (value) {
-                this.$tweenTime = value;
-            },
-            enumerable: true,
-            configurable: true
-        });
-        Object.defineProperty(GearBase.prototype, "easeType", {
-            get: function () {
-                return this.$easeType;
-            },
-            set: function (value) {
-                this.$easeType = value;
-            },
-            enumerable: true,
-            configurable: true
-        });
-        GearBase.prototype.setup = function (xml) {
-            var _this = this;
-            this.$controller = this.$owner.parent.getController(xml.attributes.controller);
-            if (this.$controller == null)
-                return;
-            this.init();
-            var str;
-            str = xml.attributes.tween;
-            if (str)
-                this.$tween = true;
-            str = xml.attributes.ease;
-            if (str)
-                this.$easeType = fgui.ParseEaseType(str);
-            str = xml.attributes.duration;
-            if (str)
-                this.$tweenTime = parseFloat(str);
-            str = xml.attributes.delay;
-            if (str)
-                this.$tweenDelay = parseFloat(str);
-            if (this instanceof fgui.GearDisplay) {
-                str = xml.attributes.pages;
-                if (str)
-                    this.pages = str.split(",");
-            }
-            else {
-                var pages_1;
-                var values = void 0;
-                str = xml.attributes.pages;
-                if (str)
-                    pages_1 = str.split(",");
-                str = xml.attributes.values;
-                if (str)
-                    values = str.split("|");
-                if (pages_1 && values) {
-                    values.forEach(function (s, i) {
-                        _this.addStatus(pages_1[i], s);
-                    });
-                }
-                str = xml.attributes.default;
-                if (str)
-                    this.addStatus(null, str);
-            }
-        };
-        GearBase.prototype.updateFromRelations = function (dx, dy) {
-        };
-        GearBase.prototype.addStatus = function (pageId, value) {
-        };
-        GearBase.prototype.init = function () {
-        };
-        GearBase.prototype.apply = function () {
-        };
-        GearBase.prototype.updateState = function () {
-        };
-        GearBase.disableAllTweenEffect = false;
-        return GearBase;
-    }());
-    fgui.GearBase = GearBase;
-})(fgui || (fgui = {}));
-/// <reference path="./GearBase.ts" />
-var fgui;
-(function (fgui) {
-    var GearAnimation = (function (_super) {
-        __extends(GearAnimation, _super);
-        function GearAnimation(owner) {
-            return _super.call(this, owner) || this;
-        }
-        GearAnimation.prototype.init = function () {
-            this.$default = new GearAnimationValue(this.$owner.playing, this.$owner.frame);
-            this.$storage = {};
-        };
-        GearAnimation.prototype.addStatus = function (pageId, value) {
-            if (value == "-")
-                return;
-            var gv;
-            if (pageId == null)
-                gv = this.$default;
-            else {
-                gv = new GearAnimationValue();
-                this.$storage[pageId] = gv;
-            }
-            var arr = value.split(",");
-            gv.frame = parseInt(arr[0]);
-            gv.playing = arr[1] == "p";
-        };
-        GearAnimation.prototype.apply = function () {
-            this.$owner.$gearLocked = true;
-            var gv = this.$storage[this.$controller.selectedPageId];
-            if (!gv)
-                gv = this.$default;
-            this.$owner.frame = gv.frame;
-            this.$owner.playing = gv.playing;
-            this.$owner.$gearLocked = false;
-        };
-        GearAnimation.prototype.updateState = function () {
-            if (this.$controller == null || this.$owner.$gearLocked || this.$owner.$inProgressBuilding)
-                return;
-            var gv = this.$storage[this.$controller.selectedPageId];
-            if (!gv) {
-                gv = new GearAnimationValue();
-                this.$storage[this.$controller.selectedPageId] = gv;
-            }
-            gv.frame = this.$owner.frame;
-            gv.playing = this.$owner.playing;
-        };
-        return GearAnimation;
-    }(fgui.GearBase));
-    fgui.GearAnimation = GearAnimation;
-    var GearAnimationValue = (function () {
-        function GearAnimationValue(playing, frame) {
-            if (playing === void 0) { playing = true; }
-            if (frame === void 0) { frame = 0; }
-            this.playing = playing;
-            this.frame = frame;
-        }
-        return GearAnimationValue;
-    }());
-})(fgui || (fgui = {}));
-var fgui;
-(function (fgui) {
-    var GearColor = (function (_super) {
-        __extends(GearColor, _super);
-        function GearColor(owner) {
-            var _this = _super.call(this, owner) || this;
-            _this.$default = 0;
-            return _this;
-        }
-        GearColor.prototype.init = function () {
-            this.$default = this.$owner.color;
-            this.$storage = {};
-        };
-        GearColor.prototype.addStatus = function (pageId, value) {
-            if (value == "-")
-                return;
-            var col = fgui.utils.StringUtil.convertFromHtmlColor(value);
-            if (pageId == null)
-                this.$default = col;
-            else
-                this.$storage[pageId] = col;
-        };
-        GearColor.prototype.apply = function () {
-            this.$owner.$gearLocked = true;
-            var data = this.$storage[this.$controller.selectedPageId];
-            if (data != undefined)
-                this.$owner.color = Math.floor(data);
-            else
-                this.$owner.color = Math.floor(this.$default);
-            this.$owner.$gearLocked = false;
-        };
-        GearColor.prototype.updateState = function () {
-            if (this.$controller == null || this.$owner.$gearLocked || this.$owner.$inProgressBuilding)
-                return;
-            this.$storage[this.$controller.selectedPageId] = this.$owner.color;
-        };
-        return GearColor;
-    }(fgui.GearBase));
-    fgui.GearColor = GearColor;
-})(fgui || (fgui = {}));
-var fgui;
-(function (fgui) {
-    var GearDisplay = (function (_super) {
-        __extends(GearDisplay, _super);
-        function GearDisplay(owner) {
-            var _this = _super.call(this, owner) || this;
-            _this.$vid = 0;
-            _this.$lockToken = 1;
-            return _this;
-        }
-        GearDisplay.prototype.init = function () {
-            this.pages = null;
-        };
-        GearDisplay.prototype.lock = function () {
-            this.$vid++;
-            return this.$lockToken;
-        };
-        GearDisplay.prototype.release = function (token) {
-            if (token == this.$lockToken)
-                this.$vid--;
-        };
-        Object.defineProperty(GearDisplay.prototype, "connected", {
-            get: function () {
-                return this.controller == null || this.$vid > 0;
-            },
-            enumerable: true,
-            configurable: true
-        });
-        GearDisplay.prototype.apply = function () {
-            this.$lockToken++;
-            if (this.$lockToken <= 0)
-                this.$lockToken = 1;
-            if (this.pages == null || this.pages.length == 0
-                || this.pages.indexOf(this.$controller.selectedPageId) != -1)
-                this.$vid = 1;
-            else
-                this.$vid = 0;
-        };
-        return GearDisplay;
-    }(fgui.GearBase));
-    fgui.GearDisplay = GearDisplay;
-})(fgui || (fgui = {}));
-var fgui;
-(function (fgui) {
-    var GearIcon = (function (_super) {
-        __extends(GearIcon, _super);
-        function GearIcon(owner) {
-            return _super.call(this, owner) || this;
-        }
-        GearIcon.prototype.init = function () {
-            this.$default = this.$owner.icon;
-            this.$storage = {};
-        };
-        GearIcon.prototype.addStatus = function (pageId, value) {
-            if (pageId == null)
-                this.$default = value;
-            else
-                this.$storage[pageId] = value;
-        };
-        GearIcon.prototype.apply = function () {
-            this.$owner.$gearLocked = true;
-            var data = this.$storage[this.$controller.selectedPageId];
-            if (data != undefined)
-                this.$owner.icon = data;
-            else
-                this.$owner.icon = this.$default;
-            this.$owner.$gearLocked = false;
-        };
-        GearIcon.prototype.updateState = function () {
-            if (this.$controller == null || this.$owner.$gearLocked || this.$owner.$inProgressBuilding)
-                return;
-            this.$storage[this.$controller.selectedPageId] = this.$owner.icon;
-        };
-        return GearIcon;
-    }(fgui.GearBase));
-    fgui.GearIcon = GearIcon;
-})(fgui || (fgui = {}));
-var fgui;
-(function (fgui) {
-    var GearLook = (function (_super) {
-        __extends(GearLook, _super);
-        function GearLook(owner) {
-            return _super.call(this, owner) || this;
-        }
-        GearLook.prototype.init = function () {
-            this.$default = new GearLookValue(this.$owner.alpha, this.$owner.rotation, this.$owner.grayed);
-            this.$storage = {};
-        };
-        GearLook.prototype.addStatus = function (pageId, value) {
-            if (value == "-")
-                return;
-            var arr = value.split(",");
-            var gv;
-            if (pageId == null)
-                gv = this.$default;
-            else {
-                gv = new GearLookValue();
-                this.$storage[pageId] = gv;
-            }
-            gv.alpha = parseFloat(arr[0]);
-            gv.rotation = parseInt(arr[1]);
-            gv.grayed = arr[2] == "1" ? true : false;
-        };
-        GearLook.prototype.apply = function () {
-            var _this = this;
-            var gv = this.$storage[this.$controller.selectedPageId];
-            if (!gv)
-                gv = this.$default;
-            if (this.$tween && !fgui.UIPackage.$constructingObjects && !fgui.GearBase.disableAllTweenEffect) {
-                this.$owner.$gearLocked = true;
-                this.$owner.grayed = gv.grayed;
-                this.$owner.$gearLocked = false;
-                if (this.$tweener) {
-                    if (this.$tweenTarget.alpha === gv.alpha && this.$tweenTarget.rotation === gv.rotation)
-                        return;
-                    this.$tweener.gotoAndStop(this.$tweener.duration); //set to end
-                    this.$tweener = null;
-                }
-                var a_1 = gv.alpha != this.$owner.alpha;
-                var b_1 = gv.rotation != this.$owner.rotation;
-                if (a_1 || b_1) {
-                    if (this.$owner.hasGearController(0, this.$controller))
-                        this.$lockToken = this.$owner.lockGearDisplay();
-                    this.$tweenTarget = gv;
-                    var vars = {
-                        onChange: function () {
-                            _this.$owner.$gearLocked = true;
-                            if (a_1)
-                                _this.$owner.alpha = _this.$tweenValue.x;
-                            if (b_1)
-                                _this.$owner.rotation = _this.$tweenValue.y;
-                            _this.$owner.$gearLocked = false;
-                        }
-                    };
-                    if (this.$tweenValue == null)
-                        this.$tweenValue = new PIXI.Point();
-                    this.$tweenValue.x = this.$owner.alpha;
-                    this.$tweenValue.y = this.$owner.rotation;
-                    this.$tweener = createjs.Tween.get(this.$tweenValue, vars)
-                        .wait(this.$tweenDelay * 1000)
-                        .to({ x: gv.alpha, y: gv.rotation }, this.$tweenTime * 1000, this.$easeType)
-                        .call(this.tweenComplete, null, this);
-                }
-            }
-            else {
-                this.$owner.$gearLocked = true;
-                this.$owner.grayed = gv.grayed;
-                this.$owner.alpha = gv.alpha;
-                this.$owner.rotation = gv.rotation;
-                this.$owner.$gearLocked = false;
-            }
-        };
-        GearLook.prototype.tweenComplete = function () {
-            if (this.$lockToken != 0) {
-                this.$owner.releaseGearDisplay(this.$lockToken);
-                this.$lockToken = 0;
-            }
-            this.$tweener = null;
-            this.$owner.emit("__gearStop" /* GEAR_STOP */, this);
-        };
-        GearLook.prototype.updateState = function () {
-            if (this.$controller == null || this.$owner.$gearLocked || this.$owner.$inProgressBuilding)
-                return;
-            var gv = this.$storage[this.$controller.selectedPageId];
-            if (!gv) {
-                gv = new GearLookValue();
-                this.$storage[this.$controller.selectedPageId] = gv;
-            }
-            gv.alpha = this.$owner.alpha;
-            gv.rotation = this.$owner.rotation;
-            gv.grayed = this.$owner.grayed;
-        };
-        return GearLook;
-    }(fgui.GearBase));
-    fgui.GearLook = GearLook;
-    var GearLookValue = (function () {
-        function GearLookValue(alpha, rotation, grayed) {
-            if (alpha === void 0) { alpha = 0; }
-            if (rotation === void 0) { rotation = 0; }
-            if (grayed === void 0) { grayed = false; }
-            this.alpha = alpha;
-            this.rotation = rotation;
-            this.grayed = grayed;
-        }
-        return GearLookValue;
-    }());
-})(fgui || (fgui = {}));
-var fgui;
-(function (fgui) {
-    var GearSize = (function (_super) {
-        __extends(GearSize, _super);
-        function GearSize(owner) {
-            return _super.call(this, owner) || this;
-        }
-        GearSize.prototype.init = function () {
-            this.$default = new GearSizeValue(this.$owner.width, this.$owner.height, this.$owner.scaleX, this.$owner.scaleY);
-            this.$storage = {};
-        };
-        GearSize.prototype.addStatus = function (pageId, value) {
-            if (value == "-")
-                return;
-            var arr = value.split(",");
-            var gv;
-            if (pageId == null)
-                gv = this.$default;
-            else {
-                gv = new GearSizeValue();
-                this.$storage[pageId] = gv;
-            }
-            gv.width = parseInt(arr[0]);
-            gv.height = parseInt(arr[1]);
-            if (arr.length > 2) {
-                gv.scaleX = parseFloat(arr[2]);
-                gv.scaleY = parseFloat(arr[3]);
-            }
-        };
-        GearSize.prototype.apply = function () {
-            var _this = this;
-            var gv = this.$storage[this.$controller.selectedPageId];
-            if (!gv)
-                gv = this.$default;
-            if (this.$tween && !fgui.UIPackage.$constructingObjects && !fgui.GearBase.disableAllTweenEffect) {
-                if (this.$tweener) {
-                    if (this.$tweenTarget.width != gv.width || this.$tweenTarget.height != gv.height
-                        || this.$tweenTarget.scaleX != gv.scaleX || this.$tweenTarget.scaleY != gv.scaleY) {
-                        this.$tweener.gotoAndStop(this.$tweener.duration); //set to end
-                        this.$tweener = null;
-                    }
-                    else
-                        return;
-                }
-                var a_2 = gv.width != this.$owner.width || gv.height != this.$owner.height;
-                var b_2 = gv.scaleX != this.$owner.scaleX || gv.scaleY != this.$owner.scaleY;
-                if (a_2 || b_2) {
-                    if (this.$owner.hasGearController(0, this.$controller))
-                        this.$lockToken = this.$owner.lockGearDisplay();
-                    this.$tweenTarget = gv;
-                    var vars = {
-                        onChange: function () {
-                            _this.$owner.$gearLocked = true;
-                            if (a_2)
-                                _this.$owner.setSize(_this.$tweenValue.width, _this.$tweenValue.height, _this.$owner.gearXY.controller == _this.$controller);
-                            if (b_2)
-                                _this.$owner.setScale(_this.$tweenValue.scaleX, _this.$tweenValue.scaleY);
-                            _this.$owner.$gearLocked = false;
-                        }
-                    };
-                    if (this.$tweenValue == null)
-                        this.$tweenValue = new GearSizeValue();
-                    this.$tweenValue.width = this.$owner.width;
-                    this.$tweenValue.height = this.$owner.height;
-                    this.$tweenValue.scaleX = this.$owner.scaleX;
-                    this.$tweenValue.scaleY = this.$owner.scaleY;
-                    this.$tweener = createjs.Tween.get(this.$tweenValue, vars)
-                        .wait(this.$tweenDelay * 1000)
-                        .to({ width: gv.width, height: gv.height, scaleX: gv.scaleX, scaleY: gv.scaleY }, this.$tweenTime * 1000, this.$easeType)
-                        .call(this.tweenComplete, null, this);
-                }
-            }
-            else {
-                this.$owner.$gearLocked = true;
-                this.$owner.setSize(gv.width, gv.height, this.$owner.gearXY.controller == this.$controller);
-                this.$owner.setScale(gv.scaleX, gv.scaleY);
-                this.$owner.$gearLocked = false;
-            }
-        };
-        GearSize.prototype.tweenComplete = function () {
-            if (this.$lockToken != 0) {
-                this.$owner.releaseGearDisplay(this.$lockToken);
-                this.$lockToken = 0;
-            }
-            this.$tweener = null;
-            this.$owner.emit("__gearStop" /* GEAR_STOP */, this);
-        };
-        GearSize.prototype.updateState = function () {
-            if (this.$controller == null || this.$owner.$gearLocked || this.$owner.$inProgressBuilding)
-                return;
-            var gv = this.$storage[this.$controller.selectedPageId];
-            if (!gv) {
-                gv = new GearSizeValue();
-                this.$storage[this.$controller.selectedPageId] = gv;
-            }
-            gv.width = this.$owner.width;
-            gv.height = this.$owner.height;
-            gv.scaleX = this.$owner.scaleX;
-            gv.scaleY = this.$owner.scaleY;
-        };
-        GearSize.prototype.updateFromRelations = function (dx, dy) {
-            if (this.$controller == null || this.$storage == null)
-                return;
-            for (var key in this.$storage) {
-                var gv = this.$storage[key];
-                gv.width += dx;
-                gv.height += dy;
-            }
-            this.$default.width += dx;
-            this.$default.height += dy;
-            this.updateState();
-        };
-        return GearSize;
-    }(fgui.GearBase));
-    fgui.GearSize = GearSize;
-    var GearSizeValue = (function () {
-        function GearSizeValue(width, height, scaleX, scaleY) {
-            if (width === void 0) { width = 0; }
-            if (height === void 0) { height = 0; }
-            if (scaleX === void 0) { scaleX = 0; }
-            if (scaleY === void 0) { scaleY = 0; }
-            this.width = width;
-            this.height = height;
-            this.scaleX = scaleX;
-            this.scaleY = scaleY;
-        }
-        return GearSizeValue;
-    }());
-})(fgui || (fgui = {}));
-var fgui;
-(function (fgui) {
-    var GearText = (function (_super) {
-        __extends(GearText, _super);
-        function GearText(owner) {
-            return _super.call(this, owner) || this;
-        }
-        GearText.prototype.init = function () {
-            this.$default = this.$owner.text;
-            this.$storage = {};
-        };
-        GearText.prototype.addStatus = function (pageId, value) {
-            if (pageId == null)
-                this.$default = value;
-            else
-                this.$storage[pageId] = value;
-        };
-        GearText.prototype.apply = function () {
-            this.$owner.$gearLocked = true;
-            var data = this.$storage[this.$controller.selectedPageId];
-            if (data != undefined)
-                this.$owner.text = data;
-            else
-                this.$owner.text = this.$default;
-            this.$owner.$gearLocked = false;
-        };
-        GearText.prototype.updateState = function () {
-            if (this.$controller == null || this.$owner.$gearLocked || this.$owner.$inProgressBuilding)
-                return;
-            this.$storage[this.$controller.selectedPageId] = this.$owner.text;
-        };
-        return GearText;
-    }(fgui.GearBase));
-    fgui.GearText = GearText;
-})(fgui || (fgui = {}));
-var fgui;
-(function (fgui) {
-    var GearXY = (function (_super) {
-        __extends(GearXY, _super);
-        function GearXY(owner) {
-            return _super.call(this, owner) || this;
-        }
-        GearXY.prototype.init = function () {
-            this.$default = new PIXI.Point(this.$owner.x, this.$owner.y);
-            this.$storage = {};
-        };
-        GearXY.prototype.addStatus = function (pageId, value) {
-            if (value == "-")
-                return;
-            var arr = value.split(",");
-            var pt;
-            if (pageId == null)
-                pt = this.$default;
-            else {
-                pt = new PIXI.Point();
-                this.$storage[pageId] = pt;
-            }
-            pt.x = parseInt(arr[0]);
-            pt.y = parseInt(arr[1]);
-        };
-        GearXY.prototype.apply = function () {
-            var _this = this;
-            var pt = this.$storage[this.$controller.selectedPageId];
-            if (!pt)
-                pt = this.$default;
-            if (this.$tween && !fgui.UIPackage.$constructingObjects && !fgui.GearBase.disableAllTweenEffect) {
-                if (this.$tweener) {
-                    if (this.$tweenTarget.x === pt.x && this.$tweenTarget.y === pt.y)
-                        return;
-                    this.$tweener.gotoAndStop(this.$tweener.duration); //set to end
-                    this.$tweener = null;
-                }
-                if (this.$owner.x != pt.x || this.$owner.y != pt.y) {
-                    this.$owner.hasGearController(0, this.$controller);
-                    this.$lockToken = this.$owner.lockGearDisplay();
-                    this.$tweenTarget = pt;
-                    var vars = {
-                        onChange: function () {
-                            _this.$owner.$gearLocked = true;
-                            _this.$owner.setXY(_this.$tweenValue.x, _this.$tweenValue.y);
-                            _this.$owner.$gearLocked = false;
-                        }
-                    };
-                    if (this.$tweenValue == null)
-                        this.$tweenValue = new PIXI.Point();
-                    this.$tweenValue.x = this.$owner.x;
-                    this.$tweenValue.y = this.$owner.y;
-                    this.$tweener = createjs.Tween.get(this.$tweenValue, vars)
-                        .wait(this.$tweenDelay * 1000)
-                        .to({ x: pt.x, y: pt.y }, this.$tweenTime * 1000, this.$easeType)
-                        .call(this.tweenComplete, null, this);
-                }
-            }
-            else {
-                this.$owner.$gearLocked = true;
-                this.$owner.setXY(pt.x, pt.y);
-                this.$owner.$gearLocked = false;
-            }
-        };
-        GearXY.prototype.tweenComplete = function () {
-            if (this.$lockToken != 0) {
-                this.$owner.releaseGearDisplay(this.$lockToken);
-                this.$lockToken = 0;
-            }
-            this.$tweener = null;
-            this.$owner.emit("__gearStop" /* GEAR_STOP */, this);
-        };
-        GearXY.prototype.updateState = function () {
-            if (this.$controller == null || this.$owner.$gearLocked || this.$owner.$inProgressBuilding)
-                return;
-            var pt = this.$storage[this.$controller.selectedPageId];
-            if (!pt) {
-                pt = new PIXI.Point();
-                this.$storage[this.$controller.selectedPageId] = pt;
-            }
-            pt.x = this.$owner.x;
-            pt.y = this.$owner.y;
-        };
-        GearXY.prototype.updateFromRelations = function (dx, dy) {
-            if (this.$controller == null || this.$storage == null)
-                return;
-            for (var key in this.$storage) {
-                var pt = this.$storage[key];
-                pt.x += dx;
-                pt.y += dy;
-            }
-            this.$default.x += dx;
-            this.$default.y += dy;
-            this.updateState();
-        };
-        return GearXY;
-    }(fgui.GearBase));
-    fgui.GearXY = GearXY;
-})(fgui || (fgui = {}));
 /// <reference path="./GObject.ts" />
 var fgui;
 (function (fgui) {
-    var GGraph = (function (_super) {
+    var GGraph = /** @class */ (function (_super) {
         __extends(GGraph, _super);
         function GGraph() {
             var _this = _super.call(this) || this;
@@ -3940,7 +3269,7 @@ var fgui;
 /// <reference path="./GObject.ts" />
 var fgui;
 (function (fgui) {
-    var GGroup = (function (_super) {
+    var GGroup = /** @class */ (function (_super) {
         __extends(GGroup, _super);
         function GGroup() {
             return _super !== null && _super.apply(this, arguments) || this;
@@ -4029,7 +3358,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var GImage = (function (_super) {
+    var GImage = /** @class */ (function (_super) {
         __extends(GImage, _super);
         function GImage() {
             return _super.call(this) || this;
@@ -4139,7 +3468,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var GLabel = (function (_super) {
+    var GLabel = /** @class */ (function (_super) {
         __extends(GLabel, _super);
         function GLabel() {
             return _super.call(this) || this;
@@ -4267,7 +3596,7 @@ var fgui;
 var fgui;
 (function (fgui) {
     ;
-    var ItemInfo = (function () {
+    var ItemInfo = /** @class */ (function () {
         function ItemInfo() {
             this.width = 0;
             this.height = 0;
@@ -4276,7 +3605,7 @@ var fgui;
         }
         return ItemInfo;
     }());
-    var GList = (function (_super) {
+    var GList = /** @class */ (function (_super) {
         __extends(GList, _super);
         function GList() {
             var _this = _super.call(this) || this;
@@ -4481,7 +3810,8 @@ var fgui;
         GList.prototype.dispose = function () {
             fgui.GTimer.inst.remove(this.$refreshVirtualList, this);
             this.$pool.clear();
-            this.$scrollPane.off("__scroll" /* SCROLL */, this.$scrolled, this);
+            if (this.$scrollPane)
+                this.$scrollPane.off("__scroll" /* SCROLL */, this.$scrolled, this);
             _super.prototype.dispose.call(this);
         };
         Object.defineProperty(GList.prototype, "layout", {
@@ -4715,7 +4045,7 @@ var fgui;
                 throw new Error("Invalid child index");
         };
         GList.prototype.removeChildToPoolAt = function (index) {
-            var child = _super.prototype.removeChildAt.call(this, index);
+            var child = this.removeChildAt(index);
             this.returnToPool(child);
         };
         GList.prototype.removeChildToPool = function (child) {
@@ -5471,7 +4801,8 @@ var fgui;
                             this.$curLineItemCount = 1;
                     }
                 }
-                else {
+                else //pagination
+                 {
                     if (this.$columnCount > 0)
                         this.$curLineItemCount = this.$columnCount;
                     else {
@@ -5777,7 +5108,7 @@ var fgui;
                 }
                 ii.updateFlag = this.$itemInfoVer;
                 ii.obj.setXY(curX, curY);
-                if (curIndex == newFirstIndex)
+                if (curIndex == newFirstIndex) //pad one more
                     max += ii.height;
                 curX += ii.width + this.$columnGap;
                 if (curIndex % this.$curLineItemCount == this.$curLineItemCount - 1) {
@@ -5797,7 +5128,7 @@ var fgui;
             }
             if (deltaSize != 0 || firstItemDeltaSize != 0)
                 this.$scrollPane.changeContentSizeOnScrolling(0, deltaSize, 0, firstItemDeltaSize);
-            if (curIndex > 0 && this.numChildren > 0 && this.$container.y < 0 && this.getChildAt(0).y > -this.$container.y)
+            if (curIndex > 0 && this.numChildren > 0 && this.$container.y < 0 && this.getChildAt(0).y > -this.$container.y) //last page is not full
                 this.handleScroll1(false); //recursive
         };
         GList.prototype.handleScroll2 = function (forceUpdate) {
@@ -6309,7 +5640,8 @@ var fgui;
                     ch = Math.ceil(maxHeight);
                 }
             }
-            else {
+            else //pagination
+             {
                 var eachHeight = void 0;
                 if (this.$autoResizeItem && this.$lineCount > 0)
                     eachHeight = Math.floor((viewHeight - (this.$lineCount - 1) * this.$lineGap) / this.$lineCount);
@@ -6372,7 +5704,8 @@ var fgui;
                             j = 0;
                             k++;
                             if (this.$lineCount != 0 && k >= this.$lineCount
-                                || this.$lineCount == 0 && curY + child.height > viewHeight && maxWidth != 0) {
+                                || this.$lineCount == 0 && curY + child.height > viewHeight && maxWidth != 0) //new page
+                             {
                                 page++;
                                 curY = 0;
                                 k = 0;
@@ -6538,7 +5871,7 @@ var fgui;
 (function (fgui) {
     var utils;
     (function (utils) {
-        var Recycler = (function () {
+        var Recycler = /** @class */ (function () {
             function Recycler() {
                 this.$count = 0;
                 this.$pool = {};
@@ -6594,7 +5927,7 @@ var fgui;
 (function (fgui) {
     var utils;
     (function (utils) {
-        var GObjectRecycler = (function (_super) {
+        var GObjectRecycler = /** @class */ (function (_super) {
             __extends(GObjectRecycler, _super);
             function GObjectRecycler() {
                 return _super.call(this) || this;
@@ -6622,7 +5955,7 @@ var fgui;
 /// <reference path="./utils/GObjectRecycler.ts" />
 var fgui;
 (function (fgui) {
-    var GLoader = (function (_super) {
+    var GLoader = /** @class */ (function (_super) {
         __extends(GLoader, _super);
         function GLoader() {
             var _this = _super.call(this) || this;
@@ -6632,6 +5965,8 @@ var fgui;
             _this.$contentSourceHeight = 0;
             _this.$contentWidth = 0;
             _this.$contentHeight = 0;
+            /**overwrite this for load resources by your own way */
+            _this.$loadingTexture = null;
             _this.$playing = true;
             _this.$url = "";
             _this.$fill = 0 /* None */;
@@ -6870,21 +6205,31 @@ var fgui;
             }
             this.$container.addChild(this.$content);
         };
-        /**overwrite this for load resources by your own way */
         GLoader.prototype.loadExternal = function () {
+            var _this = this;
             var texture = PIXI.utils.TextureCache[this.$url];
             if (!texture) {
-                texture = new PIXI.Texture(PIXI.BaseTexture.fromImage(this.$url));
+                var baseTex = PIXI.BaseTexture.fromImage(this.$url);
+                if (!baseTex.hasLoaded) {
+                    baseTex.once("loaded", function () { return _this.$loadResCompleted(texture); });
+                    baseTex.once("error", function () { return _this.$loadResCompleted(null); });
+                    texture = new PIXI.Texture(baseTex);
+                    this.$loadingTexture = texture;
+                }
+                else
+                    texture = new PIXI.Texture(baseTex);
                 PIXI.Texture.addToCache(texture, this.$url);
+                return;
             }
             this.$loadResCompleted(texture);
         };
         /**free the resource you loaded */
         GLoader.prototype.freeExternal = function (texture) {
             PIXI.Texture.removeFromCache(texture);
-            texture.destroy(true);
+            texture.destroy(texture.baseTexture != null);
         };
         GLoader.prototype.$loadResCompleted = function (res) {
+            this.$loadingTexture = null;
             if (res)
                 this.onExternalLoadSuccess(res);
             else
@@ -6900,9 +6245,11 @@ var fgui;
             }
             else
                 this.$container.addChild(this.$content);
+            //baseTexture loaded, so update frame info
+            texture.frame = new PIXI.Rectangle(0, 0, texture.baseTexture.width, texture.baseTexture.height);
             this.$content.texture = texture;
-            this.$contentSourceWidth = texture.orig.width;
-            this.$contentSourceHeight = texture.orig.height;
+            this.$contentSourceWidth = texture.width;
+            this.$contentSourceHeight = texture.height;
             this.updateLayout();
         };
         GLoader.prototype.onExternalLoadFailed = function () {
@@ -6997,6 +6344,10 @@ var fgui;
             this.clearErrorState();
             if (this.$content && this.$content.parent)
                 this.$container.removeChild(this.$content);
+            if (this.$loadingTexture) {
+                this.$loadingTexture.baseTexture.removeAllListeners();
+                this.freeExternal(this.$loadingTexture);
+            }
             if (this.$contentItem == null && this.$content instanceof fgui.UIImage)
                 this.freeExternal(this.$content.texture);
             this.$content && this.$content.destroy();
@@ -7045,7 +6396,7 @@ var fgui;
 /// <reference path="./GObject.ts" />
 var fgui;
 (function (fgui) {
-    var GMovieClip = (function (_super) {
+    var GMovieClip = /** @class */ (function (_super) {
         __extends(GMovieClip, _super);
         function GMovieClip() {
             return _super.call(this) || this;
@@ -7164,7 +6515,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var GProgressBar = (function (_super) {
+    var GProgressBar = /** @class */ (function (_super) {
         __extends(GProgressBar, _super);
         function GProgressBar() {
             var _this = _super.call(this) || this;
@@ -7340,7 +6691,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var LineInfo = (function () {
+    var LineInfo = /** @class */ (function () {
         function LineInfo() {
             this.width = 0;
             this.height = 0;
@@ -7375,7 +6726,7 @@ var fgui;
         return LineInfo;
     }());
     fgui.LineInfo = LineInfo;
-    var GTextField = (function (_super) {
+    var GTextField = /** @class */ (function (_super) {
         __extends(GTextField, _super);
         function GTextField() {
             var _this = _super.call(this) || this;
@@ -7896,10 +7247,10 @@ var fgui;
                     line = LineInfo.get();
                     line.height = lineHeight;
                     line.textHeight = lineTextHeight;
-                    if (lineBuffer.length == 0) {
+                    if (lineBuffer.length == 0) { //the line cannt fit even a char
                         line.text = ch;
                     }
-                    else if (wordChars > 0 && wordEnd > 0) {
+                    else if (wordChars > 0 && wordEnd > 0) { //if word had broken, move it to new line
                         lineBuffer += ch;
                         var len = lineBuffer.length - wordChars;
                         line.text = fgui.utils.StringUtil.trimRight(lineBuffer.substr(0, len));
@@ -8156,14 +7507,14 @@ var fgui;
 /// <reference path="./GTextField.ts" />
 var fgui;
 (function (fgui) {
-    var TextBlock = (function () {
+    var TextBlock = /** @class */ (function () {
         function TextBlock() {
         }
         return TextBlock;
     }());
     fgui.TextBlock = TextBlock;
     //TOOD: impl
-    var GRichTextField = (function (_super) {
+    var GRichTextField = /** @class */ (function (_super) {
         __extends(GRichTextField, _super);
         function GRichTextField() {
             var _this = _super.call(this) || this;
@@ -8224,7 +7575,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var GRootMouseStatus = (function () {
+    var GRootMouseStatus = /** @class */ (function () {
         function GRootMouseStatus() {
             this.touchDown = false;
             this.mouseX = 0;
@@ -8233,7 +7584,7 @@ var fgui;
         return GRootMouseStatus;
     }());
     fgui.GRootMouseStatus = GRootMouseStatus;
-    var GRoot = (function (_super) {
+    var GRoot = /** @class */ (function (_super) {
         __extends(GRoot, _super);
         function GRoot() {
             var _this = _super.call(this) || this;
@@ -8356,7 +7707,7 @@ var fgui;
         });
         GRoot.prototype.dispatchMouseWheel = function (evt) {
             var childUnderMouse = this.getObjectUnderPoint(GRoot.globalMouseStatus.mouseX, GRoot.globalMouseStatus.mouseY);
-            if (childUnderMouse != null) {
+            if (childUnderMouse != null) { //bubble
                 while (childUnderMouse.parent && childUnderMouse.parent != this) {
                     childUnderMouse.emit("__mouseWheel" /* MOUSE_WHEEL */, evt);
                     childUnderMouse = childUnderMouse.parent;
@@ -8700,7 +8051,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var GScrollBar = (function (_super) {
+    var GScrollBar = /** @class */ (function (_super) {
         __extends(GScrollBar, _super);
         function GScrollBar() {
             var _this = _super.call(this) || this;
@@ -8849,7 +8200,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var GSlider = (function (_super) {
+    var GSlider = /** @class */ (function (_super) {
         __extends(GSlider, _super);
         function GSlider() {
             var _this = _super.call(this) || this;
@@ -9019,7 +8370,7 @@ var fgui;
 var fgui;
 (function (fgui) {
     ;
-    var GTextInput = (function (_super) {
+    var GTextInput = /** @class */ (function (_super) {
         __extends(GTextInput, _super);
         function GTextInput() {
             var _this = _super.call(this) || this;
@@ -9208,7 +8559,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var GTimer = (function () {
+    var GTimer = /** @class */ (function () {
         function GTimer() {
             this.$enumIdx = 0;
             this.$enumCount = 0;
@@ -9332,7 +8683,7 @@ var fgui;
         return GTimer;
     }());
     fgui.GTimer = GTimer;
-    var TimerItem = (function () {
+    var TimerItem = /** @class */ (function () {
         function TimerItem() {
             this.delay = 0;
             this.counter = 0;
@@ -9360,14 +8711,679 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    fgui.isAnimationGear = function (obj) {
-        return obj && "playing" in obj && "frame" in obj;
-    };
+    var GearBase = /** @class */ (function () {
+        function GearBase(owner) {
+            this.$lockToken = 0;
+            this.$owner = owner;
+            this.$easeType = fgui.ParseEaseType("Quad.Out");
+            this.$tweenTime = 0.3;
+            this.$tweenDelay = 0;
+        }
+        Object.defineProperty(GearBase.prototype, "controller", {
+            get: function () {
+                return this.$controller;
+            },
+            set: function (val) {
+                if (val != this.$controller) {
+                    this.$controller = val;
+                    if (this.$controller)
+                        this.init();
+                }
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(GearBase.prototype, "tween", {
+            get: function () {
+                return this.$tween;
+            },
+            set: function (val) {
+                this.$tween = val;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(GearBase.prototype, "tweenDelay", {
+            get: function () {
+                return this.$tweenDelay;
+            },
+            set: function (val) {
+                this.$tweenDelay = val;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(GearBase.prototype, "tweenTime", {
+            get: function () {
+                return this.$tweenTime;
+            },
+            set: function (value) {
+                this.$tweenTime = value;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(GearBase.prototype, "easeType", {
+            get: function () {
+                return this.$easeType;
+            },
+            set: function (value) {
+                this.$easeType = value;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        GearBase.prototype.setup = function (xml) {
+            var _this = this;
+            this.$controller = this.$owner.parent.getController(xml.attributes.controller);
+            if (this.$controller == null)
+                return;
+            this.init();
+            var str;
+            str = xml.attributes.tween;
+            if (str)
+                this.$tween = true;
+            str = xml.attributes.ease;
+            if (str)
+                this.$easeType = fgui.ParseEaseType(str);
+            str = xml.attributes.duration;
+            if (str)
+                this.$tweenTime = parseFloat(str);
+            str = xml.attributes.delay;
+            if (str)
+                this.$tweenDelay = parseFloat(str);
+            if (this instanceof fgui.GearDisplay) {
+                str = xml.attributes.pages;
+                if (str)
+                    this.pages = str.split(",");
+            }
+            else {
+                var pages_1;
+                var values = void 0;
+                str = xml.attributes.pages;
+                if (str)
+                    pages_1 = str.split(",");
+                str = xml.attributes.values;
+                if (str)
+                    values = str.split("|");
+                if (pages_1 && values) {
+                    values.forEach(function (s, i) {
+                        _this.addStatus(pages_1[i], s);
+                    });
+                }
+                str = xml.attributes.default;
+                if (str)
+                    this.addStatus(null, str);
+            }
+        };
+        GearBase.prototype.updateFromRelations = function (dx, dy) {
+        };
+        GearBase.prototype.addStatus = function (pageId, value) {
+        };
+        GearBase.prototype.init = function () {
+        };
+        GearBase.prototype.apply = function () {
+        };
+        GearBase.prototype.updateState = function () {
+        };
+        GearBase.disableAllTweenEffect = false;
+        return GearBase;
+    }());
+    fgui.GearBase = GearBase;
+})(fgui || (fgui = {}));
+/// <reference path="./GearBase.ts" />
+var fgui;
+(function (fgui) {
+    var GearAnimation = /** @class */ (function (_super) {
+        __extends(GearAnimation, _super);
+        function GearAnimation(owner) {
+            return _super.call(this, owner) || this;
+        }
+        GearAnimation.prototype.init = function () {
+            this.$default = new GearAnimationValue(this.$owner.playing, this.$owner.frame);
+            this.$storage = {};
+        };
+        GearAnimation.prototype.addStatus = function (pageId, value) {
+            if (value == "-")
+                return;
+            var gv;
+            if (pageId == null)
+                gv = this.$default;
+            else {
+                gv = new GearAnimationValue();
+                this.$storage[pageId] = gv;
+            }
+            var arr = value.split(",");
+            gv.frame = parseInt(arr[0]);
+            gv.playing = arr[1] == "p";
+        };
+        GearAnimation.prototype.apply = function () {
+            this.$owner.$gearLocked = true;
+            var gv = this.$storage[this.$controller.selectedPageId];
+            if (!gv)
+                gv = this.$default;
+            this.$owner.frame = gv.frame;
+            this.$owner.playing = gv.playing;
+            this.$owner.$gearLocked = false;
+        };
+        GearAnimation.prototype.updateState = function () {
+            if (this.$controller == null || this.$owner.$gearLocked || this.$owner.$inProgressBuilding)
+                return;
+            var gv = this.$storage[this.$controller.selectedPageId];
+            if (!gv) {
+                gv = new GearAnimationValue();
+                this.$storage[this.$controller.selectedPageId] = gv;
+            }
+            gv.frame = this.$owner.frame;
+            gv.playing = this.$owner.playing;
+        };
+        return GearAnimation;
+    }(fgui.GearBase));
+    fgui.GearAnimation = GearAnimation;
+    var GearAnimationValue = /** @class */ (function () {
+        function GearAnimationValue(playing, frame) {
+            if (playing === void 0) { playing = true; }
+            if (frame === void 0) { frame = 0; }
+            this.playing = playing;
+            this.frame = frame;
+        }
+        return GearAnimationValue;
+    }());
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    fgui.isColorableTitle = function (obj) {
-        return obj && "titleColor" in obj && "fontSize" in obj;
+    var GearColor = /** @class */ (function (_super) {
+        __extends(GearColor, _super);
+        function GearColor(owner) {
+            var _this = _super.call(this, owner) || this;
+            _this.$default = 0;
+            return _this;
+        }
+        GearColor.prototype.init = function () {
+            this.$default = this.$owner.color;
+            this.$storage = {};
+        };
+        GearColor.prototype.addStatus = function (pageId, value) {
+            if (value == "-")
+                return;
+            var col = fgui.utils.StringUtil.convertFromHtmlColor(value);
+            if (pageId == null)
+                this.$default = col;
+            else
+                this.$storage[pageId] = col;
+        };
+        GearColor.prototype.apply = function () {
+            this.$owner.$gearLocked = true;
+            var data = this.$storage[this.$controller.selectedPageId];
+            if (data != undefined)
+                this.$owner.color = Math.floor(data);
+            else
+                this.$owner.color = Math.floor(this.$default);
+            this.$owner.$gearLocked = false;
+        };
+        GearColor.prototype.updateState = function () {
+            if (this.$controller == null || this.$owner.$gearLocked || this.$owner.$inProgressBuilding)
+                return;
+            this.$storage[this.$controller.selectedPageId] = this.$owner.color;
+        };
+        return GearColor;
+    }(fgui.GearBase));
+    fgui.GearColor = GearColor;
+})(fgui || (fgui = {}));
+var fgui;
+(function (fgui) {
+    var GearDisplay = /** @class */ (function (_super) {
+        __extends(GearDisplay, _super);
+        function GearDisplay(owner) {
+            var _this = _super.call(this, owner) || this;
+            _this.$vid = 0;
+            _this.$lockToken = 1;
+            return _this;
+        }
+        GearDisplay.prototype.init = function () {
+            this.pages = null;
+        };
+        GearDisplay.prototype.lock = function () {
+            this.$vid++;
+            return this.$lockToken;
+        };
+        GearDisplay.prototype.release = function (token) {
+            if (token == this.$lockToken)
+                this.$vid--;
+        };
+        Object.defineProperty(GearDisplay.prototype, "connected", {
+            get: function () {
+                return this.controller == null || this.$vid > 0;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        GearDisplay.prototype.apply = function () {
+            this.$lockToken++;
+            if (this.$lockToken <= 0)
+                this.$lockToken = 1;
+            if (this.pages == null || this.pages.length == 0
+                || this.pages.indexOf(this.$controller.selectedPageId) != -1)
+                this.$vid = 1;
+            else
+                this.$vid = 0;
+        };
+        return GearDisplay;
+    }(fgui.GearBase));
+    fgui.GearDisplay = GearDisplay;
+})(fgui || (fgui = {}));
+var fgui;
+(function (fgui) {
+    var GearIcon = /** @class */ (function (_super) {
+        __extends(GearIcon, _super);
+        function GearIcon(owner) {
+            return _super.call(this, owner) || this;
+        }
+        GearIcon.prototype.init = function () {
+            this.$default = this.$owner.icon;
+            this.$storage = {};
+        };
+        GearIcon.prototype.addStatus = function (pageId, value) {
+            if (pageId == null)
+                this.$default = value;
+            else
+                this.$storage[pageId] = value;
+        };
+        GearIcon.prototype.apply = function () {
+            this.$owner.$gearLocked = true;
+            var data = this.$storage[this.$controller.selectedPageId];
+            if (data != undefined)
+                this.$owner.icon = data;
+            else
+                this.$owner.icon = this.$default;
+            this.$owner.$gearLocked = false;
+        };
+        GearIcon.prototype.updateState = function () {
+            if (this.$controller == null || this.$owner.$gearLocked || this.$owner.$inProgressBuilding)
+                return;
+            this.$storage[this.$controller.selectedPageId] = this.$owner.icon;
+        };
+        return GearIcon;
+    }(fgui.GearBase));
+    fgui.GearIcon = GearIcon;
+})(fgui || (fgui = {}));
+var fgui;
+(function (fgui) {
+    var GearLook = /** @class */ (function (_super) {
+        __extends(GearLook, _super);
+        function GearLook(owner) {
+            return _super.call(this, owner) || this;
+        }
+        GearLook.prototype.init = function () {
+            this.$default = new GearLookValue(this.$owner.alpha, this.$owner.rotation, this.$owner.grayed);
+            this.$storage = {};
+        };
+        GearLook.prototype.addStatus = function (pageId, value) {
+            if (value == "-")
+                return;
+            var arr = value.split(",");
+            var gv;
+            if (pageId == null)
+                gv = this.$default;
+            else {
+                gv = new GearLookValue();
+                this.$storage[pageId] = gv;
+            }
+            gv.alpha = parseFloat(arr[0]);
+            gv.rotation = parseInt(arr[1]);
+            gv.grayed = arr[2] == "1" ? true : false;
+        };
+        GearLook.prototype.apply = function () {
+            var _this = this;
+            var gv = this.$storage[this.$controller.selectedPageId];
+            if (!gv)
+                gv = this.$default;
+            if (this.$tween && !fgui.UIPackage.$constructingObjects && !fgui.GearBase.disableAllTweenEffect) {
+                this.$owner.$gearLocked = true;
+                this.$owner.grayed = gv.grayed;
+                this.$owner.$gearLocked = false;
+                if (this.$tweener) {
+                    if (this.$tweenTarget.alpha === gv.alpha && this.$tweenTarget.rotation === gv.rotation)
+                        return;
+                    this.$tweener.gotoAndStop(this.$tweener.duration); //set to end
+                    this.$tweener = null;
+                }
+                var a_1 = gv.alpha != this.$owner.alpha;
+                var b_1 = gv.rotation != this.$owner.rotation;
+                if (a_1 || b_1) {
+                    if (this.$owner.hasGearController(0, this.$controller))
+                        this.$lockToken = this.$owner.lockGearDisplay();
+                    this.$tweenTarget = gv;
+                    var vars = {
+                        onChange: function () {
+                            _this.$owner.$gearLocked = true;
+                            if (a_1)
+                                _this.$owner.alpha = _this.$tweenValue.x;
+                            if (b_1)
+                                _this.$owner.rotation = _this.$tweenValue.y;
+                            _this.$owner.$gearLocked = false;
+                        }
+                    };
+                    if (this.$tweenValue == null)
+                        this.$tweenValue = new PIXI.Point();
+                    this.$tweenValue.x = this.$owner.alpha;
+                    this.$tweenValue.y = this.$owner.rotation;
+                    this.$tweener = createjs.Tween.get(this.$tweenValue, vars)
+                        .wait(this.$tweenDelay * 1000)
+                        .to({ x: gv.alpha, y: gv.rotation }, this.$tweenTime * 1000, this.$easeType)
+                        .call(this.tweenComplete, null, this);
+                }
+            }
+            else {
+                this.$owner.$gearLocked = true;
+                this.$owner.grayed = gv.grayed;
+                this.$owner.alpha = gv.alpha;
+                this.$owner.rotation = gv.rotation;
+                this.$owner.$gearLocked = false;
+            }
+        };
+        GearLook.prototype.tweenComplete = function () {
+            if (this.$lockToken != 0) {
+                this.$owner.releaseGearDisplay(this.$lockToken);
+                this.$lockToken = 0;
+            }
+            this.$tweener = null;
+            this.$owner.emit("__gearStop" /* GEAR_STOP */, this);
+        };
+        GearLook.prototype.updateState = function () {
+            if (this.$controller == null || this.$owner.$gearLocked || this.$owner.$inProgressBuilding)
+                return;
+            var gv = this.$storage[this.$controller.selectedPageId];
+            if (!gv) {
+                gv = new GearLookValue();
+                this.$storage[this.$controller.selectedPageId] = gv;
+            }
+            gv.alpha = this.$owner.alpha;
+            gv.rotation = this.$owner.rotation;
+            gv.grayed = this.$owner.grayed;
+        };
+        return GearLook;
+    }(fgui.GearBase));
+    fgui.GearLook = GearLook;
+    var GearLookValue = /** @class */ (function () {
+        function GearLookValue(alpha, rotation, grayed) {
+            if (alpha === void 0) { alpha = 0; }
+            if (rotation === void 0) { rotation = 0; }
+            if (grayed === void 0) { grayed = false; }
+            this.alpha = alpha;
+            this.rotation = rotation;
+            this.grayed = grayed;
+        }
+        return GearLookValue;
+    }());
+})(fgui || (fgui = {}));
+var fgui;
+(function (fgui) {
+    var GearSize = /** @class */ (function (_super) {
+        __extends(GearSize, _super);
+        function GearSize(owner) {
+            return _super.call(this, owner) || this;
+        }
+        GearSize.prototype.init = function () {
+            this.$default = new GearSizeValue(this.$owner.width, this.$owner.height, this.$owner.scaleX, this.$owner.scaleY);
+            this.$storage = {};
+        };
+        GearSize.prototype.addStatus = function (pageId, value) {
+            if (value == "-")
+                return;
+            var arr = value.split(",");
+            var gv;
+            if (pageId == null)
+                gv = this.$default;
+            else {
+                gv = new GearSizeValue();
+                this.$storage[pageId] = gv;
+            }
+            gv.width = parseInt(arr[0]);
+            gv.height = parseInt(arr[1]);
+            if (arr.length > 2) {
+                gv.scaleX = parseFloat(arr[2]);
+                gv.scaleY = parseFloat(arr[3]);
+            }
+        };
+        GearSize.prototype.apply = function () {
+            var _this = this;
+            var gv = this.$storage[this.$controller.selectedPageId];
+            if (!gv)
+                gv = this.$default;
+            if (this.$tween && !fgui.UIPackage.$constructingObjects && !fgui.GearBase.disableAllTweenEffect) {
+                if (this.$tweener) {
+                    if (this.$tweenTarget.width != gv.width || this.$tweenTarget.height != gv.height
+                        || this.$tweenTarget.scaleX != gv.scaleX || this.$tweenTarget.scaleY != gv.scaleY) {
+                        this.$tweener.gotoAndStop(this.$tweener.duration); //set to end
+                        this.$tweener = null;
+                    }
+                    else
+                        return;
+                }
+                var a_2 = gv.width != this.$owner.width || gv.height != this.$owner.height;
+                var b_2 = gv.scaleX != this.$owner.scaleX || gv.scaleY != this.$owner.scaleY;
+                if (a_2 || b_2) {
+                    if (this.$owner.hasGearController(0, this.$controller))
+                        this.$lockToken = this.$owner.lockGearDisplay();
+                    this.$tweenTarget = gv;
+                    var vars = {
+                        onChange: function () {
+                            _this.$owner.$gearLocked = true;
+                            if (a_2)
+                                _this.$owner.setSize(_this.$tweenValue.width, _this.$tweenValue.height, _this.$owner.gearXY.controller == _this.$controller);
+                            if (b_2)
+                                _this.$owner.setScale(_this.$tweenValue.scaleX, _this.$tweenValue.scaleY);
+                            _this.$owner.$gearLocked = false;
+                        }
+                    };
+                    if (this.$tweenValue == null)
+                        this.$tweenValue = new GearSizeValue();
+                    this.$tweenValue.width = this.$owner.width;
+                    this.$tweenValue.height = this.$owner.height;
+                    this.$tweenValue.scaleX = this.$owner.scaleX;
+                    this.$tweenValue.scaleY = this.$owner.scaleY;
+                    this.$tweener = createjs.Tween.get(this.$tweenValue, vars)
+                        .wait(this.$tweenDelay * 1000)
+                        .to({ width: gv.width, height: gv.height, scaleX: gv.scaleX, scaleY: gv.scaleY }, this.$tweenTime * 1000, this.$easeType)
+                        .call(this.tweenComplete, null, this);
+                }
+            }
+            else {
+                this.$owner.$gearLocked = true;
+                this.$owner.setSize(gv.width, gv.height, this.$owner.gearXY.controller == this.$controller);
+                this.$owner.setScale(gv.scaleX, gv.scaleY);
+                this.$owner.$gearLocked = false;
+            }
+        };
+        GearSize.prototype.tweenComplete = function () {
+            if (this.$lockToken != 0) {
+                this.$owner.releaseGearDisplay(this.$lockToken);
+                this.$lockToken = 0;
+            }
+            this.$tweener = null;
+            this.$owner.emit("__gearStop" /* GEAR_STOP */, this);
+        };
+        GearSize.prototype.updateState = function () {
+            if (this.$controller == null || this.$owner.$gearLocked || this.$owner.$inProgressBuilding)
+                return;
+            var gv = this.$storage[this.$controller.selectedPageId];
+            if (!gv) {
+                gv = new GearSizeValue();
+                this.$storage[this.$controller.selectedPageId] = gv;
+            }
+            gv.width = this.$owner.width;
+            gv.height = this.$owner.height;
+            gv.scaleX = this.$owner.scaleX;
+            gv.scaleY = this.$owner.scaleY;
+        };
+        GearSize.prototype.updateFromRelations = function (dx, dy) {
+            if (this.$controller == null || this.$storage == null)
+                return;
+            for (var key in this.$storage) {
+                var gv = this.$storage[key];
+                gv.width += dx;
+                gv.height += dy;
+            }
+            this.$default.width += dx;
+            this.$default.height += dy;
+            this.updateState();
+        };
+        return GearSize;
+    }(fgui.GearBase));
+    fgui.GearSize = GearSize;
+    var GearSizeValue = /** @class */ (function () {
+        function GearSizeValue(width, height, scaleX, scaleY) {
+            if (width === void 0) { width = 0; }
+            if (height === void 0) { height = 0; }
+            if (scaleX === void 0) { scaleX = 0; }
+            if (scaleY === void 0) { scaleY = 0; }
+            this.width = width;
+            this.height = height;
+            this.scaleX = scaleX;
+            this.scaleY = scaleY;
+        }
+        return GearSizeValue;
+    }());
+})(fgui || (fgui = {}));
+var fgui;
+(function (fgui) {
+    var GearText = /** @class */ (function (_super) {
+        __extends(GearText, _super);
+        function GearText(owner) {
+            return _super.call(this, owner) || this;
+        }
+        GearText.prototype.init = function () {
+            this.$default = this.$owner.text;
+            this.$storage = {};
+        };
+        GearText.prototype.addStatus = function (pageId, value) {
+            if (pageId == null)
+                this.$default = value;
+            else
+                this.$storage[pageId] = value;
+        };
+        GearText.prototype.apply = function () {
+            this.$owner.$gearLocked = true;
+            var data = this.$storage[this.$controller.selectedPageId];
+            if (data != undefined)
+                this.$owner.text = data;
+            else
+                this.$owner.text = this.$default;
+            this.$owner.$gearLocked = false;
+        };
+        GearText.prototype.updateState = function () {
+            if (this.$controller == null || this.$owner.$gearLocked || this.$owner.$inProgressBuilding)
+                return;
+            this.$storage[this.$controller.selectedPageId] = this.$owner.text;
+        };
+        return GearText;
+    }(fgui.GearBase));
+    fgui.GearText = GearText;
+})(fgui || (fgui = {}));
+var fgui;
+(function (fgui) {
+    var GearXY = /** @class */ (function (_super) {
+        __extends(GearXY, _super);
+        function GearXY(owner) {
+            return _super.call(this, owner) || this;
+        }
+        GearXY.prototype.init = function () {
+            this.$default = new PIXI.Point(this.$owner.x, this.$owner.y);
+            this.$storage = {};
+        };
+        GearXY.prototype.addStatus = function (pageId, value) {
+            if (value == "-")
+                return;
+            var arr = value.split(",");
+            var pt;
+            if (pageId == null)
+                pt = this.$default;
+            else {
+                pt = new PIXI.Point();
+                this.$storage[pageId] = pt;
+            }
+            pt.x = parseInt(arr[0]);
+            pt.y = parseInt(arr[1]);
+        };
+        GearXY.prototype.apply = function () {
+            var _this = this;
+            var pt = this.$storage[this.$controller.selectedPageId];
+            if (!pt)
+                pt = this.$default;
+            if (this.$tween && !fgui.UIPackage.$constructingObjects && !fgui.GearBase.disableAllTweenEffect) {
+                if (this.$tweener) {
+                    if (this.$tweenTarget.x === pt.x && this.$tweenTarget.y === pt.y)
+                        return;
+                    this.$tweener.gotoAndStop(this.$tweener.duration); //set to end
+                    this.$tweener = null;
+                }
+                if (this.$owner.x != pt.x || this.$owner.y != pt.y) {
+                    this.$owner.hasGearController(0, this.$controller);
+                    this.$lockToken = this.$owner.lockGearDisplay();
+                    this.$tweenTarget = pt;
+                    var vars = {
+                        onChange: function () {
+                            _this.$owner.$gearLocked = true;
+                            _this.$owner.setXY(_this.$tweenValue.x, _this.$tweenValue.y);
+                            _this.$owner.$gearLocked = false;
+                        }
+                    };
+                    if (this.$tweenValue == null)
+                        this.$tweenValue = new PIXI.Point();
+                    this.$tweenValue.x = this.$owner.x;
+                    this.$tweenValue.y = this.$owner.y;
+                    this.$tweener = createjs.Tween.get(this.$tweenValue, vars)
+                        .wait(this.$tweenDelay * 1000)
+                        .to({ x: pt.x, y: pt.y }, this.$tweenTime * 1000, this.$easeType)
+                        .call(this.tweenComplete, null, this);
+                }
+            }
+            else {
+                this.$owner.$gearLocked = true;
+                this.$owner.setXY(pt.x, pt.y);
+                this.$owner.$gearLocked = false;
+            }
+        };
+        GearXY.prototype.tweenComplete = function () {
+            if (this.$lockToken != 0) {
+                this.$owner.releaseGearDisplay(this.$lockToken);
+                this.$lockToken = 0;
+            }
+            this.$tweener = null;
+            this.$owner.emit("__gearStop" /* GEAR_STOP */, this);
+        };
+        GearXY.prototype.updateState = function () {
+            if (this.$controller == null || this.$owner.$gearLocked || this.$owner.$inProgressBuilding)
+                return;
+            var pt = this.$storage[this.$controller.selectedPageId];
+            if (!pt) {
+                pt = new PIXI.Point();
+                this.$storage[this.$controller.selectedPageId] = pt;
+            }
+            pt.x = this.$owner.x;
+            pt.y = this.$owner.y;
+        };
+        GearXY.prototype.updateFromRelations = function (dx, dy) {
+            if (this.$controller == null || this.$storage == null)
+                return;
+            for (var key in this.$storage) {
+                var pt = this.$storage[key];
+                pt.x += dx;
+                pt.y += dy;
+            }
+            this.$default.x += dx;
+            this.$default.y += dy;
+            this.updateState();
+        };
+        return GearXY;
+    }(fgui.GearBase));
+    fgui.GearXY = GearXY;
+})(fgui || (fgui = {}));
+var fgui;
+(function (fgui) {
+    fgui.isAnimationGear = function (obj) {
+        return obj && "playing" in obj && "frame" in obj;
     };
 })(fgui || (fgui = {}));
 var fgui;
@@ -9378,7 +9394,13 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var PopupMenu = (function () {
+    fgui.isColorableTitle = function (obj) {
+        return obj && "titleColor" in obj && "fontSize" in obj;
+    };
+})(fgui || (fgui = {}));
+var fgui;
+(function (fgui) {
+    var PopupMenu = /** @class */ (function () {
         function PopupMenu(resourceURL) {
             if (resourceURL === void 0) { resourceURL = null; }
             if (!resourceURL) {
@@ -9545,7 +9567,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var RelationItem = (function () {
+    var RelationItem = /** @class */ (function () {
         function RelationItem(owner) {
             this.$owner = owner;
             this.$defs = [];
@@ -9968,7 +9990,7 @@ var fgui;
         return RelationItem;
     }());
     fgui.RelationItem = RelationItem;
-    var RelationDef = (function () {
+    var RelationDef = /** @class */ (function () {
         function RelationDef() {
         }
         RelationDef.prototype.copyFrom = function (source) {
@@ -9981,7 +10003,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var Relations = (function () {
+    var Relations = /** @class */ (function () {
         function Relations(owner) {
             this.sizeDirty = false;
             this.$owner = owner;
@@ -10160,10 +10182,11 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var ScrollPane = (function (_super) {
+    var ScrollPane = /** @class */ (function (_super) {
         __extends(ScrollPane, _super);
         function ScrollPane(owner, scrollType, scrollBarMargin, scrollBarDisplay, flags, vtScrollBarRes, hzScrollBarRes, headerRes, footerRes) {
             var _this = _super.call(this) || this;
+            _this.$isDragging = false;
             _this.$owner = owner;
             _this.$maskContainer = new fgui.UIContainer(null);
             _this.$owner.$rootContainer.addChild(_this.$maskContainer);
@@ -10208,6 +10231,7 @@ var fgui;
             _this.$contentSize = new PIXI.Point();
             _this.$pageSize = new PIXI.Point(1, 1);
             _this.$overlapSize = new PIXI.Point();
+            _this.$tweening = 0;
             _this.$tweenTime = new PIXI.Point();
             _this.$tweenStart = new PIXI.Point();
             _this.$tweenDuration = new PIXI.Point();
@@ -11017,7 +11041,7 @@ var fgui;
             this.refresh2();
             //Events.dispatch(Events.SCROLL, this.$owner.displayObject);
             this.emit("__scroll" /* SCROLL */, this);
-            if (this.$needRefresh) {
+            if (this.$needRefresh) { //developer might modify position in the callback, so here refresh again to avoid flickering
                 this.$needRefresh = false;
                 fgui.GTimer.inst.remove(this.refresh, this);
                 this.refresh2();
@@ -11158,7 +11182,7 @@ var fgui;
                 if (newPosY > 0) {
                     if (!this.$bouncebackEffect)
                         this.$container.y = 0;
-                    else if (this.$header != null && this.$header.height != 0)
+                    else if (this.$header != null && this.$header.height != 0) //TODO: height -> maxHeight
                         this.$container.y = Math.floor(Math.min(newPosY * 0.5, this.$header.height));
                     else
                         this.$container.y = Math.floor(Math.min(newPosY * 0.5, this.$viewSize.y * ScrollPane.PULL_DIST_RATIO));
@@ -11166,7 +11190,7 @@ var fgui;
                 else if (newPosY < -this.$overlapSize.y) {
                     if (!this.$bouncebackEffect)
                         this.$container.y = -this.$overlapSize.y;
-                    else if (this.$footer != null && this.$footer.height > 0)
+                    else if (this.$footer != null && this.$footer.height > 0) //TODO: height -> maxHeight
                         this.$container.y = Math.floor(Math.max((newPosY + this.$overlapSize.y) * 0.5, -this.$footer.height) - this.$overlapSize.y);
                     else
                         this.$container.y = Math.floor(Math.max((newPosY + this.$overlapSize.y) * 0.5, -this.$viewSize.y * ScrollPane.PULL_DIST_RATIO) - this.$overlapSize.y);
@@ -11178,7 +11202,7 @@ var fgui;
                 if (newPosX > 0) {
                     if (!this.$bouncebackEffect)
                         this.$container.x = 0;
-                    else if (this.$header != null && this.$header.width != 0)
+                    else if (this.$header != null && this.$header.width != 0) //TODO: width -> maxWidth
                         this.$container.x = Math.floor(Math.min(newPosX * 0.5, this.$header.width));
                     else
                         this.$container.x = Math.floor(Math.min(newPosX * 0.5, this.$viewSize.x * ScrollPane.PULL_DIST_RATIO));
@@ -11186,7 +11210,7 @@ var fgui;
                 else if (newPosX < 0 - this.$overlapSize.x) {
                     if (!this.$bouncebackEffect)
                         this.$container.x = -this.$overlapSize.x;
-                    else if (this.$footer != null && this.$footer.width > 0)
+                    else if (this.$footer != null && this.$footer.width > 0) //TODO: width -> maxWidth
                         this.$container.x = Math.floor(Math.max((newPosX + this.$overlapSize.x) * 0.5, -this.$footer.width) - this.$overlapSize.x);
                     else
                         this.$container.x = Math.floor(Math.max((newPosX + this.$overlapSize.x) * 0.5, -this.$viewSize.x * ScrollPane.PULL_DIST_RATIO) - this.$overlapSize.x);
@@ -11699,7 +11723,8 @@ var fgui;
                 }
                 if (this.$tweening == 2 && this.$bouncebackEffect) {
                     if (newValue > 20 + threshold1 && this.$tweenChange[axis] > 0
-                        || newValue > threshold1 && this.$tweenChange[axis] == 0) {
+                        || newValue > threshold1 && this.$tweenChange[axis] == 0) //start to bounce
+                     {
                         this.$tweenTime[axis] = 0;
                         this.$tweenDuration[axis] = ScrollPane.TWEEN_DEFAULT_DURATION;
                         this.$tweenChange[axis] = -newValue + threshold1;
@@ -11744,7 +11769,7 @@ var fgui;
 var fgui;
 (function (fgui) {
     ;
-    var Transition = (function () {
+    var Transition = /** @class */ (function () {
         function Transition(owner) {
             this.autoPlayRepeat = 1;
             this.autoPlayDelay = 0;
@@ -12629,7 +12654,7 @@ var fgui;
         return Transition;
     }());
     fgui.Transition = Transition;
-    var TransitionItem = (function () {
+    var TransitionItem = /** @class */ (function () {
         function TransitionItem() {
             this.time = 0;
             this.type = 0;
@@ -12651,7 +12676,7 @@ var fgui;
         };
         return TransitionItem;
     }());
-    var TransitionValue = (function () {
+    var TransitionValue = /** @class */ (function () {
         function TransitionValue() {
             this.f1 = 0;
             this.f2 = 0;
@@ -12668,7 +12693,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var Window = (function (_super) {
+    var Window = /** @class */ (function (_super) {
         __extends(Window, _super);
         function Window() {
             var _this = _super.call(this) || this;
@@ -12942,10 +12967,300 @@ var fgui;
     }(fgui.GComponent));
     fgui.Window = Window;
 })(fgui || (fgui = {}));
+var PIXI;
+(function (PIXI) {
+    var extras;
+    (function (extras) {
+        var InteractionManager = /** @class */ (function (_super) {
+            __extends(InteractionManager, _super);
+            function InteractionManager(renderer, options) {
+                var _this = _super.call(this, renderer, options) || this;
+                _this.stageRotation = 0;
+                _this.stageScaleX = 1;
+                _this.stageScaleY = 1;
+                return _this;
+            }
+            InteractionManager.prototype.mapPositionToPoint = function (point, x, y) {
+                var rect = void 0;
+                var dom = this.interactionDOMElement;
+                // IE 11 fix
+                if (!dom.parentElement) {
+                    rect = { x: 0, y: 0, width: 0, height: 0 };
+                }
+                else {
+                    rect = dom.getBoundingClientRect();
+                }
+                var nav = navigator;
+                var resolutionMultiplier = nav.isCocoonJS ? this.resolution : 1.0 / this.resolution;
+                var doc = document.documentElement;
+                var left = rect.left + window.pageXOffset - doc.clientLeft;
+                var top = rect.top + window.pageYOffset - doc.clientTop;
+                x -= left;
+                y -= top;
+                var newx = x, newy = y;
+                if (this.stageRotation == 90) {
+                    newx = y;
+                    newy = rect.width - x;
+                }
+                else if (this.stageRotation == -90) {
+                    newx = rect.height - y;
+                    newy = x;
+                }
+                newx = newx * this.stageScaleX * resolutionMultiplier;
+                newy = newy * this.stageScaleY * resolutionMultiplier;
+                point.set(newx, newy);
+            };
+            return InteractionManager;
+        }(PIXI.interaction.InteractionManager));
+        extras.InteractionManager = InteractionManager;
+        //override
+        PIXI.CanvasRenderer.registerPlugin("interaction", PIXI.extras.InteractionManager);
+        PIXI.WebGLRenderer.registerPlugin("interaction", PIXI.extras.InteractionManager);
+    })(extras = PIXI.extras || (PIXI.extras = {}));
+})(PIXI || (PIXI = {}));
+var PIXI;
+(function (PIXI) {
+    var extras;
+    (function (extras) {
+        var NineSlicePlane = /** @class */ (function (_super) {
+            __extends(NineSlicePlane, _super);
+            function NineSlicePlane() {
+                var _this = _super !== null && _super.apply(this, arguments) || this;
+                _this.$flipX = false;
+                _this.$flipY = false;
+                return _this;
+            }
+            NineSlicePlane.prototype.updateHorizontalVertices = function () {
+                var vertices = this.vertices;
+                var h = this._topHeight + this._bottomHeight;
+                var scale = this._height > h ? 1.0 : this._height / h;
+                vertices[9] = vertices[11] = vertices[13] = vertices[15] = (this.$flipY ? this._bottomHeight : this._topHeight) * scale;
+                vertices[17] = vertices[19] = vertices[21] = vertices[23] = this._height - (this.$flipY ? this._topHeight : this._bottomHeight) * scale;
+                vertices[25] = vertices[27] = vertices[29] = vertices[31] = this._height;
+            };
+            ;
+            NineSlicePlane.prototype.updateVerticalVertices = function () {
+                var vertices = this.vertices;
+                var w = this._leftWidth + this._rightWidth;
+                var scale = this._width > w ? 1.0 : this._width / w;
+                vertices[2] = vertices[10] = vertices[18] = vertices[26] = (this.$flipX ? this._rightWidth : this._leftWidth) * scale;
+                vertices[4] = vertices[12] = vertices[20] = vertices[28] = this._width - (this.$flipX ? this._leftWidth : this._rightWidth) * scale;
+                vertices[6] = vertices[14] = vertices[22] = vertices[30] = this._width;
+            };
+            ;
+            NineSlicePlane.prototype._refresh = function () {
+                //call stack: super() -> Plane.refresh -> this._refresh() but now _leftWidth etc are undefined, so the calculations in this._refresh are useless.
+                if (isNaN(this._leftWidth) || isNaN(this._topHeight) || isNaN(this._rightWidth) || isNaN(this._bottomHeight))
+                    return;
+                _super.prototype._refresh.call(this);
+                var uvs = this.uvs;
+                if (this.$flipX) {
+                    var x0 = uvs[0];
+                    var x1 = uvs[2];
+                    uvs[0] = uvs[6];
+                    uvs[2] = uvs[4];
+                    uvs[6] = x0;
+                    uvs[4] = x1;
+                    x0 = uvs[8];
+                    x1 = uvs[10];
+                    uvs[8] = uvs[14];
+                    uvs[10] = uvs[12];
+                    uvs[14] = x0;
+                    uvs[12] = x1;
+                    x0 = uvs[16];
+                    x1 = uvs[18];
+                    uvs[16] = uvs[22];
+                    uvs[18] = uvs[20];
+                    uvs[22] = x0;
+                    uvs[20] = x1;
+                    x0 = uvs[24];
+                    x1 = uvs[26];
+                    uvs[24] = uvs[30];
+                    uvs[26] = uvs[28];
+                    uvs[30] = x0;
+                    uvs[28] = x1;
+                }
+                if (this.$flipY) {
+                    var y0 = uvs[1];
+                    var y1 = uvs[9];
+                    uvs[1] = uvs[25];
+                    uvs[9] = uvs[17];
+                    uvs[25] = y0;
+                    uvs[17] = y1;
+                    y0 = uvs[3];
+                    y1 = uvs[11];
+                    uvs[3] = uvs[27];
+                    uvs[11] = uvs[19];
+                    uvs[27] = y0;
+                    uvs[19] = y1;
+                    y0 = uvs[5];
+                    y1 = uvs[13];
+                    uvs[5] = uvs[29];
+                    uvs[13] = uvs[21];
+                    uvs[29] = y0;
+                    uvs[21] = y1;
+                    y0 = uvs[7];
+                    y1 = uvs[15];
+                    uvs[7] = uvs[31];
+                    uvs[15] = uvs[23];
+                    uvs[31] = y0;
+                    uvs[23] = y1;
+                }
+            };
+            Object.defineProperty(NineSlicePlane.prototype, "flipX", {
+                get: function () {
+                    return this.$flipX;
+                },
+                set: function (v) {
+                    if (this.$flipX != v) {
+                        this.$flipX = v;
+                        this._refresh();
+                    }
+                },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(NineSlicePlane.prototype, "flipY", {
+                get: function () {
+                    return this.$flipY;
+                },
+                set: function (v) {
+                    if (this.$flipY != v) {
+                        this.$flipY = v;
+                        this._refresh();
+                    }
+                },
+                enumerable: true,
+                configurable: true
+            });
+            return NineSlicePlane;
+        }(PIXI.mesh.NineSlicePlane));
+        extras.NineSlicePlane = NineSlicePlane;
+    })(extras = PIXI.extras || (PIXI.extras = {}));
+})(PIXI || (PIXI = {}));
+var PIXI;
+(function (PIXI) {
+    var extras;
+    (function (extras) {
+        var Sprite = /** @class */ (function (_super) {
+            __extends(Sprite, _super);
+            function Sprite(frameId, tex) {
+                var _this = _super.call(this, tex) || this;
+                _this.$flipX = false;
+                _this.$flipY = false;
+                _this.$frameId = frameId;
+                return _this;
+            }
+            Object.defineProperty(Sprite.prototype, "flipX", {
+                get: function () {
+                    return this.$flipX;
+                },
+                set: function (v) {
+                    if (this.$flipX != v) {
+                        this.$flipX = v;
+                        fgui.GTimer.inst.callLater(this.updateUvs, this);
+                    }
+                },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(Sprite.prototype, "flipY", {
+                get: function () {
+                    return this.$flipY;
+                },
+                set: function (v) {
+                    if (this.$flipY != v) {
+                        this.$flipY = v;
+                        fgui.GTimer.inst.callLater(this.updateUvs, this);
+                    }
+                },
+                enumerable: true,
+                configurable: true
+            });
+            Sprite.prototype.combineCacheId = function (flipx, flipy) {
+                if (!this.$frameId || this.$frameId == "")
+                    return null;
+                return "" + this.$frameId + (flipx ? '_fx' : '') + (flipy ? '_fy' : '');
+            };
+            Sprite.prototype.getTextureFromCache = function (flipx, flipy) {
+                var cachedid = this.combineCacheId(flipx, flipy);
+                if (cachedid == null)
+                    return this._texture;
+                var ret = Sprite.$cachedTexturePool[cachedid];
+                if (!ret) {
+                    ret = {
+                        refCount: 1,
+                        texture: this.createFlippedTexture(this._texture, flipx, flipy)
+                    };
+                    Sprite.$cachedTexturePool[cachedid] = ret;
+                }
+                else
+                    ret.refCount++;
+                return ret.texture;
+            };
+            Sprite.prototype.tryRemoveTextureCache = function (flipx, flipy) {
+                var cachedid = this.combineCacheId(flipx, flipy);
+                if (!cachedid)
+                    return false;
+                var ret = Sprite.$cachedTexturePool[cachedid];
+                if (ret) {
+                    ret.refCount--;
+                    if (ret.refCount <= 0) {
+                        ret.texture.destroy();
+                        delete Sprite.$cachedTexturePool[cachedid];
+                    }
+                    return true;
+                }
+                return false;
+            };
+            Sprite.prototype.createFlippedTexture = function (origTexture, flipx, flipy) {
+                var newTex = origTexture.clone();
+                var uvs = newTex["_uvs"];
+                if (this.$flipX) {
+                    var tx0 = uvs.x0;
+                    var tx3 = uvs.x3;
+                    uvs.x0 = uvs.x1;
+                    uvs.x1 = tx0;
+                    uvs.x3 = uvs.x2;
+                    uvs.x2 = tx3;
+                }
+                if (this.$flipY) {
+                    var ty0 = uvs.y0;
+                    var ty1 = uvs.y1;
+                    uvs.y0 = uvs.y3;
+                    uvs.y3 = ty0;
+                    uvs.y1 = uvs.y2;
+                    uvs.y2 = ty1;
+                }
+                uvs.uvsUint32[0] = (uvs.y0 * 65535 & 0xFFFF) << 16 | uvs.x0 * 65535 & 0xFFFF;
+                uvs.uvsUint32[1] = (uvs.y1 * 65535 & 0xFFFF) << 16 | uvs.x1 * 65535 & 0xFFFF;
+                uvs.uvsUint32[2] = (uvs.y2 * 65535 & 0xFFFF) << 16 | uvs.x2 * 65535 & 0xFFFF;
+                uvs.uvsUint32[3] = (uvs.y3 * 65535 & 0xFFFF) << 16 | uvs.x3 * 65535 & 0xFFFF;
+                return newTex;
+            };
+            Sprite.prototype.updateUvs = function () {
+                if (!this._texture)
+                    return;
+                if (this.$flipX || this.$flipY) {
+                    var cachedTex = this.getTextureFromCache(this.$flipX, this.$flipY);
+                    if (this._texture != cachedTex)
+                        this._texture = cachedTex;
+                }
+            };
+            Sprite.prototype.destroy = function (options) {
+                this.tryRemoveTextureCache(this.$flipX, this.$flipY);
+                _super.prototype.destroy.call(this, options);
+            };
+            Sprite.$cachedTexturePool = {};
+            return Sprite;
+        }(PIXI.Sprite));
+        extras.Sprite = Sprite;
+    })(extras = PIXI.extras || (PIXI.extras = {}));
+})(PIXI || (PIXI = {}));
 var fgui;
 (function (fgui) {
     /**global ui configuration */
-    var UIConfig = (function () {
+    var UIConfig = /** @class */ (function () {
         function UIConfig() {
         }
         /**default font name of your project. */
@@ -12979,7 +13294,7 @@ var fgui;
 (function (fgui) {
     var controller;
     (function (controller_1) {
-        var Action = (function () {
+        var Action = /** @class */ (function () {
             function Action() {
             }
             Action.create = function (type) {
@@ -13020,7 +13335,7 @@ var fgui;
 (function (fgui) {
     var controller;
     (function (controller_2) {
-        var ChangePageAction = (function (_super) {
+        var ChangePageAction = /** @class */ (function (_super) {
             __extends(ChangePageAction, _super);
             function ChangePageAction() {
                 return _super !== null && _super.apply(this, arguments) || this;
@@ -13054,7 +13369,7 @@ var fgui;
 (function (fgui) {
     var controller;
     (function (controller) {
-        var Controller = (function (_super) {
+        var Controller = /** @class */ (function (_super) {
             __extends(Controller, _super);
             function Controller() {
                 var _this = _super.call(this) || this;
@@ -13331,7 +13646,7 @@ var fgui;
 (function (fgui) {
     var controller;
     (function (controller) {
-        var PageOption = (function () {
+        var PageOption = /** @class */ (function () {
             function PageOption() {
             }
             Object.defineProperty(PageOption.prototype, "controller", {
@@ -13389,7 +13704,7 @@ var fgui;
 (function (fgui) {
     var controller;
     (function (controller_3) {
-        var PlayTransitionAction = (function (_super) {
+        var PlayTransitionAction = /** @class */ (function (_super) {
             __extends(PlayTransitionAction, _super);
             function PlayTransitionAction() {
                 var _this = _super !== null && _super.apply(this, arguments) || this;
@@ -13437,18 +13752,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var BitmapFont = (function () {
-        function BitmapFont() {
-            this.size = 0;
-            this.glyphs = {};
-        }
-        return BitmapFont;
-    }());
-    fgui.BitmapFont = BitmapFont;
-})(fgui || (fgui = {}));
-var fgui;
-(function (fgui) {
-    var BMGlyph = (function () {
+    var BMGlyph = /** @class */ (function () {
         function BMGlyph() {
             this.x = 0;
             this.y = 0;
@@ -13466,8 +13770,19 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
+    var BitmapFont = /** @class */ (function () {
+        function BitmapFont() {
+            this.size = 0;
+            this.glyphs = {};
+        }
+        return BitmapFont;
+    }());
+    fgui.BitmapFont = BitmapFont;
+})(fgui || (fgui = {}));
+var fgui;
+(function (fgui) {
     /**for webgl only */
-    var FillSprite = (function (_super) {
+    var FillSprite = /** @class */ (function (_super) {
         __extends(FillSprite, _super);
         function FillSprite(texture) {
             var _this = _super.call(this, texture) || this;
@@ -13582,7 +13897,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var Frame = (function () {
+    var Frame = /** @class */ (function () {
         function Frame() {
             this.addDelay = 0;
         }
@@ -13592,7 +13907,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var HTMLInput = (function () {
+    var HTMLInput = /** @class */ (function () {
         function HTMLInput() {
             /**@internal */
             this.$requestToShow = false;
@@ -13780,7 +14095,13 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var InputElement = (function (_super) {
+    fgui.isUIObject = function (obj) {
+        return obj && "UIOwner" in obj && obj.UIOwner != null;
+    };
+})(fgui || (fgui = {}));
+var fgui;
+(function (fgui) {
+    var InputElement = /** @class */ (function (_super) {
         __extends(InputElement, _super);
         function InputElement(tf) {
             var _this = _super.call(this) || this;
@@ -14028,14 +14349,8 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    fgui.isUIObject = function (obj) {
-        return obj && "UIOwner" in obj && obj.UIOwner != null;
-    };
-})(fgui || (fgui = {}));
-var fgui;
-(function (fgui) {
     ;
-    var MovieClip = (function (_super) {
+    var MovieClip = /** @class */ (function (_super) {
         __extends(MovieClip, _super);
         function MovieClip(owner) {
             var _this = _super.call(this) || this;
@@ -14234,7 +14549,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var MovieClipData = (function () {
+    var MovieClipData = /** @class */ (function () {
         function MovieClipData() {
             this.repeatedCount = 0;
             this.$curFrame = 0;
@@ -14323,7 +14638,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var DefaultMovieClipSettings = (function () {
+    var DefaultMovieClipSettings = /** @class */ (function () {
         function DefaultMovieClipSettings() {
             /**the first frame number to start to play */
             this.startFrame = 0;
@@ -14354,7 +14669,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var UIContainer = (function (_super) {
+    var UIContainer = /** @class */ (function (_super) {
         __extends(UIContainer, _super);
         function UIContainer(owner) {
             var _this = _super.call(this) || this;
@@ -14395,7 +14710,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var UIImage = (function (_super) {
+    var UIImage = /** @class */ (function (_super) {
         __extends(UIImage, _super);
         function UIImage(owner) {
             var _this = _super.call(this) || this;
@@ -14547,7 +14862,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var UISprite = (function (_super) {
+    var UISprite = /** @class */ (function (_super) {
         __extends(UISprite, _super);
         function UISprite(owner) {
             var _this = _super.call(this) || this;
@@ -14564,7 +14879,7 @@ var fgui;
 (function (fgui) {
     var utils;
     (function (utils) {
-        var DOMEventManager = (function (_super) {
+        var DOMEventManager = /** @class */ (function (_super) {
             __extends(DOMEventManager, _super);
             function DOMEventManager() {
                 var _this = _super.call(this) || this;
@@ -14706,7 +15021,7 @@ var fgui;
 /// <reference path="../utils/DOMEventManager.ts" />
 var fgui;
 (function (fgui) {
-    var DefaultUIStageOptions = (function () {
+    var DefaultUIStageOptions = /** @class */ (function () {
         function DefaultUIStageOptions() {
             this.scaleMode = "showAll" /* SHOW_ALL */;
             this.orientation = "auto" /* AUTO */;
@@ -14721,7 +15036,7 @@ var fgui;
         return DefaultUIStageOptions;
     }());
     fgui.DefaultUIStageOptions = DefaultUIStageOptions;
-    var DefaultBoudingRectCalculator = (function () {
+    var DefaultBoudingRectCalculator = /** @class */ (function () {
         function DefaultBoudingRectCalculator() {
         }
         DefaultBoudingRectCalculator.prototype.getRect = function (view, fallbackWidth, fallbackHeight) {
@@ -14759,7 +15074,7 @@ var fgui;
         };
         return DefaultBoudingRectCalculator;
     }());
-    var UIStage = (function (_super) {
+    var UIStage = /** @class */ (function (_super) {
         __extends(UIStage, _super);
         function UIStage(app, stageOptions) {
             var _this = _super.call(this) || this;
@@ -15076,6 +15391,7 @@ var fgui;
                 }
             }
         }
+        // non surrogate
         else if ((hs >= 0x2100 && hs <= 0x27ff)
             || (hs >= 0x2B05 && hs <= 0x2b07)
             || (hs >= 0x2934 && hs <= 0x2935)
@@ -15096,6 +15412,17 @@ var fgui;
             return false;
         return true;
     };
+    /*
+    * I assume that your project uses CJK languages so that the sentence won't be splitted by ' ' char here,
+    * In case if your project has multiple-language support please override this method in your project like the code below:
+    *      PIXI.TextMetrics.isBreakingSpace = function(char?: string): boolean {
+           if (typeof char !== 'string')
+               return false;
+           //not break by ' ' char here for CJK language, and other alphabetic language like English will be splitted by ' ' char naturally
+           if(char === ' ' && langSetting.language === 'CJK') return false;
+           return (PIXI.TextMetrics._breakingSpaces.indexOf(char.charCodeAt(0)) >= 0);
+       };
+    */
     PIXI.TextMetrics.isBreakingSpace = function (char) {
         if (typeof char !== 'string')
             return false;
@@ -15103,7 +15430,7 @@ var fgui;
             return false; //not break by this
         return (PIXI.TextMetrics._breakingSpaces.indexOf(char.charCodeAt(0)) >= 0);
     };
-    var UITextField = (function (_super) {
+    var UITextField = /** @class */ (function (_super) {
         __extends(UITextField, _super);
         function UITextField(owner) {
             var _this = _super.call(this) || this;
@@ -15206,299 +15533,9 @@ var fgui;
     }(PIXI.Text));
     fgui.UITextField = UITextField;
 })(fgui || (fgui = {}));
-var PIXI;
-(function (PIXI) {
-    var extras;
-    (function (extras) {
-        var InteractionManager = (function (_super) {
-            __extends(InteractionManager, _super);
-            function InteractionManager(renderer, options) {
-                var _this = _super.call(this, renderer, options) || this;
-                _this.stageRotation = 0;
-                _this.stageScaleX = 1;
-                _this.stageScaleY = 1;
-                return _this;
-            }
-            InteractionManager.prototype.mapPositionToPoint = function (point, x, y) {
-                var rect = void 0;
-                var dom = this.interactionDOMElement;
-                // IE 11 fix
-                if (!dom.parentElement) {
-                    rect = { x: 0, y: 0, width: 0, height: 0 };
-                }
-                else {
-                    rect = dom.getBoundingClientRect();
-                }
-                var nav = navigator;
-                var resolutionMultiplier = nav.isCocoonJS ? this.resolution : 1.0 / this.resolution;
-                var doc = document.documentElement;
-                var left = rect.left + window.pageXOffset - doc.clientLeft;
-                var top = rect.top + window.pageYOffset - doc.clientTop;
-                x -= left;
-                y -= top;
-                var newx = x, newy = y;
-                if (this.stageRotation == 90) {
-                    newx = y;
-                    newy = rect.width - x;
-                }
-                else if (this.stageRotation == -90) {
-                    newx = rect.height - y;
-                    newy = x;
-                }
-                newx = newx * this.stageScaleX * resolutionMultiplier;
-                newy = newy * this.stageScaleY * resolutionMultiplier;
-                point.set(newx, newy);
-            };
-            return InteractionManager;
-        }(PIXI.interaction.InteractionManager));
-        extras.InteractionManager = InteractionManager;
-        //override
-        PIXI.CanvasRenderer.registerPlugin("interaction", PIXI.extras.InteractionManager);
-        PIXI.WebGLRenderer.registerPlugin("interaction", PIXI.extras.InteractionManager);
-    })(extras = PIXI.extras || (PIXI.extras = {}));
-})(PIXI || (PIXI = {}));
-var PIXI;
-(function (PIXI) {
-    var extras;
-    (function (extras) {
-        var NineSlicePlane = (function (_super) {
-            __extends(NineSlicePlane, _super);
-            function NineSlicePlane() {
-                var _this = _super !== null && _super.apply(this, arguments) || this;
-                _this.$flipX = false;
-                _this.$flipY = false;
-                return _this;
-            }
-            NineSlicePlane.prototype.updateHorizontalVertices = function () {
-                var vertices = this.vertices;
-                var h = this._topHeight + this._bottomHeight;
-                var scale = this._height > h ? 1.0 : this._height / h;
-                vertices[9] = vertices[11] = vertices[13] = vertices[15] = (this.$flipY ? this._bottomHeight : this._topHeight) * scale;
-                vertices[17] = vertices[19] = vertices[21] = vertices[23] = this._height - (this.$flipY ? this._topHeight : this._bottomHeight) * scale;
-                vertices[25] = vertices[27] = vertices[29] = vertices[31] = this._height;
-            };
-            ;
-            NineSlicePlane.prototype.updateVerticalVertices = function () {
-                var vertices = this.vertices;
-                var w = this._leftWidth + this._rightWidth;
-                var scale = this._width > w ? 1.0 : this._width / w;
-                vertices[2] = vertices[10] = vertices[18] = vertices[26] = (this.$flipX ? this._rightWidth : this._leftWidth) * scale;
-                vertices[4] = vertices[12] = vertices[20] = vertices[28] = this._width - (this.$flipX ? this._leftWidth : this._rightWidth) * scale;
-                vertices[6] = vertices[14] = vertices[22] = vertices[30] = this._width;
-            };
-            ;
-            NineSlicePlane.prototype._refresh = function () {
-                //call stack: super() -> Plane.refresh -> this._refresh() but now _leftWidth etc are undefined, so the calculations in this._refresh are useless.
-                if (isNaN(this._leftWidth) || isNaN(this._topHeight) || isNaN(this._rightWidth) || isNaN(this._bottomHeight))
-                    return;
-                _super.prototype._refresh.call(this);
-                var uvs = this.uvs;
-                if (this.$flipX) {
-                    var x0 = uvs[0];
-                    var x1 = uvs[2];
-                    uvs[0] = uvs[6];
-                    uvs[2] = uvs[4];
-                    uvs[6] = x0;
-                    uvs[4] = x1;
-                    x0 = uvs[8];
-                    x1 = uvs[10];
-                    uvs[8] = uvs[14];
-                    uvs[10] = uvs[12];
-                    uvs[14] = x0;
-                    uvs[12] = x1;
-                    x0 = uvs[16];
-                    x1 = uvs[18];
-                    uvs[16] = uvs[22];
-                    uvs[18] = uvs[20];
-                    uvs[22] = x0;
-                    uvs[20] = x1;
-                    x0 = uvs[24];
-                    x1 = uvs[26];
-                    uvs[24] = uvs[30];
-                    uvs[26] = uvs[28];
-                    uvs[30] = x0;
-                    uvs[28] = x1;
-                }
-                if (this.$flipY) {
-                    var y0 = uvs[1];
-                    var y1 = uvs[9];
-                    uvs[1] = uvs[25];
-                    uvs[9] = uvs[17];
-                    uvs[25] = y0;
-                    uvs[17] = y1;
-                    y0 = uvs[3];
-                    y1 = uvs[11];
-                    uvs[3] = uvs[27];
-                    uvs[11] = uvs[19];
-                    uvs[27] = y0;
-                    uvs[19] = y1;
-                    y0 = uvs[5];
-                    y1 = uvs[13];
-                    uvs[5] = uvs[29];
-                    uvs[13] = uvs[21];
-                    uvs[29] = y0;
-                    uvs[21] = y1;
-                    y0 = uvs[7];
-                    y1 = uvs[15];
-                    uvs[7] = uvs[31];
-                    uvs[15] = uvs[23];
-                    uvs[31] = y0;
-                    uvs[23] = y1;
-                }
-            };
-            Object.defineProperty(NineSlicePlane.prototype, "flipX", {
-                get: function () {
-                    return this.$flipX;
-                },
-                set: function (v) {
-                    if (this.$flipX != v) {
-                        this.$flipX = v;
-                        this._refresh();
-                    }
-                },
-                enumerable: true,
-                configurable: true
-            });
-            Object.defineProperty(NineSlicePlane.prototype, "flipY", {
-                get: function () {
-                    return this.$flipY;
-                },
-                set: function (v) {
-                    if (this.$flipY != v) {
-                        this.$flipY = v;
-                        this._refresh();
-                    }
-                },
-                enumerable: true,
-                configurable: true
-            });
-            return NineSlicePlane;
-        }(PIXI.mesh.NineSlicePlane));
-        extras.NineSlicePlane = NineSlicePlane;
-    })(extras = PIXI.extras || (PIXI.extras = {}));
-})(PIXI || (PIXI = {}));
-var PIXI;
-(function (PIXI) {
-    var extras;
-    (function (extras) {
-        var Sprite = (function (_super) {
-            __extends(Sprite, _super);
-            function Sprite(frameId, tex) {
-                var _this = _super.call(this, tex) || this;
-                _this.$flipX = false;
-                _this.$flipY = false;
-                _this.$frameId = frameId;
-                return _this;
-            }
-            Object.defineProperty(Sprite.prototype, "flipX", {
-                get: function () {
-                    return this.$flipX;
-                },
-                set: function (v) {
-                    if (this.$flipX != v) {
-                        this.$flipX = v;
-                        fgui.GTimer.inst.callLater(this.updateUvs, this);
-                    }
-                },
-                enumerable: true,
-                configurable: true
-            });
-            Object.defineProperty(Sprite.prototype, "flipY", {
-                get: function () {
-                    return this.$flipY;
-                },
-                set: function (v) {
-                    if (this.$flipY != v) {
-                        this.$flipY = v;
-                        fgui.GTimer.inst.callLater(this.updateUvs, this);
-                    }
-                },
-                enumerable: true,
-                configurable: true
-            });
-            Sprite.prototype.combineCacheId = function (flipx, flipy) {
-                if (!this.$frameId || this.$frameId == "")
-                    return null;
-                return "" + this.$frameId + (flipx ? '_fx' : '') + (flipy ? '_fy' : '');
-            };
-            Sprite.prototype.getTextureFromCache = function (flipx, flipy) {
-                var cachedid = this.combineCacheId(flipx, flipy);
-                if (cachedid == null)
-                    return this._texture;
-                var ret = Sprite.$cachedTexturePool[cachedid];
-                if (!ret) {
-                    ret = {
-                        refCount: 1,
-                        texture: this.createFlippedTexture(this._texture, flipx, flipy)
-                    };
-                    Sprite.$cachedTexturePool[cachedid] = ret;
-                }
-                else
-                    ret.refCount++;
-                return ret.texture;
-            };
-            Sprite.prototype.tryRemoveTextureCache = function (flipx, flipy) {
-                var cachedid = this.combineCacheId(flipx, flipy);
-                if (!cachedid)
-                    return false;
-                var ret = Sprite.$cachedTexturePool[cachedid];
-                if (ret) {
-                    ret.refCount--;
-                    if (ret.refCount <= 0) {
-                        ret.texture.destroy();
-                        delete Sprite.$cachedTexturePool[cachedid];
-                    }
-                    return true;
-                }
-                return false;
-            };
-            Sprite.prototype.createFlippedTexture = function (origTexture, flipx, flipy) {
-                var newTex = origTexture.clone();
-                var uvs = newTex["_uvs"];
-                if (this.$flipX) {
-                    var tx0 = uvs.x0;
-                    var tx3 = uvs.x3;
-                    uvs.x0 = uvs.x1;
-                    uvs.x1 = tx0;
-                    uvs.x3 = uvs.x2;
-                    uvs.x2 = tx3;
-                }
-                if (this.$flipY) {
-                    var ty0 = uvs.y0;
-                    var ty1 = uvs.y1;
-                    uvs.y0 = uvs.y3;
-                    uvs.y3 = ty0;
-                    uvs.y1 = uvs.y2;
-                    uvs.y2 = ty1;
-                }
-                uvs.uvsUint32[0] = (uvs.y0 * 65535 & 0xFFFF) << 16 | uvs.x0 * 65535 & 0xFFFF;
-                uvs.uvsUint32[1] = (uvs.y1 * 65535 & 0xFFFF) << 16 | uvs.x1 * 65535 & 0xFFFF;
-                uvs.uvsUint32[2] = (uvs.y2 * 65535 & 0xFFFF) << 16 | uvs.x2 * 65535 & 0xFFFF;
-                uvs.uvsUint32[3] = (uvs.y3 * 65535 & 0xFFFF) << 16 | uvs.x3 * 65535 & 0xFFFF;
-                return newTex;
-            };
-            Sprite.prototype.updateUvs = function () {
-                if (!this._texture)
-                    return;
-                if (this.$flipX || this.$flipY) {
-                    var cachedTex = this.getTextureFromCache(this.$flipX, this.$flipY);
-                    if (this._texture != cachedTex)
-                        this._texture = cachedTex;
-                }
-            };
-            Sprite.prototype.destroy = function (options) {
-                this.tryRemoveTextureCache(this.$flipX, this.$flipY);
-                _super.prototype.destroy.call(this, options);
-            };
-            Sprite.$cachedTexturePool = {};
-            return Sprite;
-        }(PIXI.Sprite));
-        extras.Sprite = Sprite;
-    })(extras = PIXI.extras || (PIXI.extras = {}));
-})(PIXI || (PIXI = {}));
 var fgui;
 (function (fgui) {
-    var DisplayListItem = (function () {
+    var DisplayListItem = /** @class */ (function () {
         function DisplayListItem(packageItem, type) {
             this.packageItem = packageItem;
             this.type = type;
@@ -15509,7 +15546,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var PackageItem = (function () {
+    var PackageItem = /** @class */ (function () {
         function PackageItem() {
             this.width = 0;
             this.height = 0;
@@ -15530,7 +15567,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var UIObjectFactory = (function () {
+    var UIObjectFactory = /** @class */ (function () {
         function UIObjectFactory() {
         }
         UIObjectFactory.setPackageItemExtension = function (url, type) {
@@ -15610,7 +15647,7 @@ var fgui;
 })(fgui || (fgui = {}));
 var fgui;
 (function (fgui) {
-    var AtlasConfig = (function () {
+    var AtlasConfig = /** @class */ (function () {
         function AtlasConfig(atlasName, frame, orig, trim, rotate) {
             this.atlasName = atlasName;
             this.frame = frame;
@@ -15620,7 +15657,7 @@ var fgui;
         }
         return AtlasConfig;
     }());
-    var UIPackage = (function () {
+    var UIPackage = /** @class */ (function () {
         function UIPackage() {
             this.$items = [];
             this.$atlasConfigs = {};
@@ -15974,7 +16011,7 @@ var fgui;
                         }
                     }
                     return item.texture;
-                case 3 /* Sound */://ignored, maybe integrate with PIXI.Sound
+                case 3 /* Sound */: //ignored, maybe integrate with PIXI.Sound
                     item.decoded = false;
                     return null;
                 case 6 /* Font */:
@@ -16295,7 +16332,7 @@ var fgui;
 (function (fgui) {
     var utils;
     (function (utils) {
-        var AssetLoader = (function (_super) {
+        var AssetLoader = /** @class */ (function (_super) {
             __extends(AssetLoader, _super);
             function AssetLoader(baseUrl, concurrency) {
                 return _super.call(this, baseUrl, concurrency) || this;
@@ -16329,7 +16366,7 @@ var fgui;
             AssetLoader.addResources = function (res) {
                 if (!res)
                     return;
-                for (var key in res)
+                for (var key in res) //override the item which has same key name
                     AssetLoader.$resources[key] = res[key];
             };
             AssetLoader.$resources = {};
@@ -16342,7 +16379,7 @@ var fgui;
 (function (fgui) {
     var utils;
     (function (utils) {
-        var Binder = (function () {
+        var Binder = /** @class */ (function () {
             function Binder() {
             }
             Binder.create = function (func, context) {
@@ -16393,7 +16430,7 @@ var fgui;
         * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
         * OTHER DEALINGS IN THE SOFTWARE.
         */
-        var ColorMatrix = (function () {
+        var ColorMatrix = /** @class */ (function () {
             /**
              * Provides helper functions for assembling a matrix for use with the {{#crossLink "ColorMatrixFilter"}}{{/crossLink}}.
              * Most methods return the instance to facilitate chained calls.
@@ -16761,7 +16798,7 @@ var fgui;
 (function (fgui) {
     var utils;
     (function (utils) {
-        var DragIndicator = (function () {
+        var DragIndicator = /** @class */ (function () {
             function DragIndicator() {
                 this.$agent = new fgui.GLoader();
                 this.$agent.draggable = true;
@@ -16839,7 +16876,7 @@ var fgui;
 (function (fgui) {
     var utils;
     (function (utils) {
-        var InputDelegate = (function () {
+        var InputDelegate = /** @class */ (function () {
             function InputDelegate(tf) {
                 this.$inited = false;
                 this.$restrictString = null;
@@ -17001,7 +17038,7 @@ var fgui;
 (function (fgui) {
     var utils;
     (function (utils) {
-        var Margin = (function () {
+        var Margin = /** @class */ (function () {
             function Margin() {
                 this.left = 0;
                 this.right = 0;
@@ -17040,7 +17077,7 @@ var fgui;
 (function (fgui) {
     var utils;
     (function (utils) {
-        var NumberUtil = (function () {
+        var NumberUtil = /** @class */ (function () {
             function NumberUtil() {
             }
             NumberUtil.clamp = function (value, min, max) {
@@ -17086,7 +17123,7 @@ var fgui;
 (function (fgui) {
     var utils;
     (function (utils) {
-        var RawByte = (function () {
+        var RawByte = /** @class */ (function () {
             function RawByte() {
             }
             RawByte.inRange = function (a, min, max) {
@@ -17192,7 +17229,7 @@ var fgui;
 (function (fgui) {
     var utils;
     (function (utils) {
-        var StringUtil = (function () {
+        var StringUtil = /** @class */ (function () {
             function StringUtil() {
             }
             StringUtil.encodeHTML = function (str) {
@@ -17307,7 +17344,7 @@ var fgui;
 (function (fgui) {
     var utils;
     (function (utils) {
-        var UBBParser = (function () {
+        var UBBParser = /** @class */ (function () {
             function UBBParser() {
                 this.$readPos = 0;
                 this.smallFontSize = 12;
@@ -17409,7 +17446,7 @@ var fgui;
 (function (fgui) {
     var utils;
     (function (utils) {
-        var XmlNode = (function () {
+        var XmlNode = /** @class */ (function () {
             function XmlNode(ele) {
                 this.nodeName = ele.nodeName;
                 this.context = ele;
@@ -17437,7 +17474,7 @@ var fgui;
             return XmlNode;
         }());
         utils.XmlNode = XmlNode;
-        var XmlParser = (function () {
+        var XmlParser = /** @class */ (function () {
             function XmlParser() {
             }
             XmlParser.tryParse = function (xmlstring, mimeType) {
